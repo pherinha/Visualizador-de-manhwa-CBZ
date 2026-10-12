@@ -1,14 +1,28 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="auto">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#16181d">
+  <meta name="theme-color" content="#121316">
+  <meta name="color-scheme" content="dark light">
   <title>Visualizador de Manhwa</title>
   <meta name="description" content="Leia manhwas em CBZ direto do navegador, com rolagem contínua e carregamento leve.">
   <meta name="author" content="Lucas">
   <link rel="icon" href="frog.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <!-- Aplica o tema salvo antes da primeira pintura (evita o "piscar") -->
+  <script>
+    try {
+      var s = JSON.parse(localStorage.getItem("cbz-reader:v2") || localStorage.getItem("cbz-reader:v1")),
+        r = document.documentElement;
+      if (s && s.theme) {
+        r.dataset.theme = s.theme;
+        if (s.theme === "custom" && /^#[0-9a-f]{6}$/i.test(s.bg)) r.style.setProperty("--bg", s.bg);
+      }
+      if (s && s.ui) r.dataset.ui = s.ui;
+    } catch (e) {}
+  </script>
   <link rel="stylesheet" href="assets/styles/style.css">
   <script src="assets/js/vendor/jszip.min.js" defer></script>
   <script src="assets/js/script.js" defer></script>
@@ -16,7 +30,7 @@
 
 <body>
   <a class="skip" href="#viewer">Ir para a leitura</a>
-  <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+  <div class="progress" id="prog" aria-hidden="true"><i id="bar"></i></div>
 
   <header class="topbar" id="topbar">
     <button class="icon" id="open" type="button" data-open aria-label="Abrir arquivos CBZ">
@@ -29,6 +43,14 @@
       <label class="sr" for="chapter">Capítulo</label>
       <select id="chapter"></select>
     </div>
+    <button class="icon" id="fs" type="button" aria-pressed="false" aria-label="Tela cheia" hidden>
+      <svg class="off" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+      </svg>
+      <svg class="on" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+      </svg>
+    </button>
   </header>
 
   <main id="viewer" tabindex="-1">
@@ -39,7 +61,8 @@
       <h1>Visualizador de Manhwa</h1>
       <p>Abra capítulos em CBZ do seu aparelho e leia rolando a tela. Os arquivos não saem do seu navegador.</p>
       <button class="btn" type="button" data-open>Escolher arquivos</button>
-      <p>Ou arraste os arquivos .cbz para esta página.</p>
+      <p class="sub">Você também pode arrastar vários arquivos .cbz para esta página.</p>
+      <noscript><p>Ative o JavaScript para usar o leitor.</p></noscript>
     </section>
 
     <div class="reader" id="reader" hidden></div>
@@ -53,45 +76,149 @@
     </footer>
   </main>
 
+  <p class="toast" id="toast" hidden></p>
+
   <nav class="dock" id="dock" aria-label="Capítulos e ajustes" hidden>
-    <button class="icon" type="button" data-nav="-1" aria-label="Capítulo anterior"><svg viewBox="0 0 24 24" aria-hidden="true">
+    <button class="icon" type="button" data-nav="-1" aria-label="Capítulo anterior">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M15 18l-6-6 6-6" />
-      </svg></button>
-    <span class="count"><span class="sr">Página </span><span id="cur">1</span><span aria-hidden="true"> / </span><span class="sr"> de </span><span id="tot">1</span></span>
-    <button class="icon" type="button" data-nav="1" aria-label="Próximo capítulo"><svg viewBox="0 0 24 24" aria-hidden="true">
+      </svg>
+    </button>
+    <span class="count" id="count"><span class="sr">Página </span><span id="cur">1</span><span aria-hidden="true"> / </span><span class="sr"> de </span><span id="tot">1</span></span>
+    <button class="icon" type="button" data-nav="1" aria-label="Próximo capítulo">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M9 18l6-6-6-6" />
-      </svg></button>
-    <button class="icon" type="button" id="opensettings" aria-haspopup="dialog" aria-label="Ajustes de leitura"><svg viewBox="0 0 24 24" aria-hidden="true">
+      </svg>
+    </button>
+    <i class="sep" aria-hidden="true"></i>
+    <button class="icon" type="button" id="play" aria-pressed="false" aria-label="Iniciar rolagem automática">
+      <svg class="off" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 4.5v15l12-7.5z" />
+      </svg>
+      <svg class="on" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M8 5v14M16 5v14" />
+      </svg>
+    </button>
+    <button class="icon" type="button" id="opensettings" aria-haspopup="dialog" aria-label="Ajustes de leitura">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
-      </svg></button>
+      </svg>
+    </button>
   </nav>
 
   <dialog id="settings" aria-labelledby="st-title">
     <form method="dialog" class="sheet">
-      <h2 id="st-title">Ajustes de leitura</h2>
-      <label>Tema
-        <select name="theme">
-          <option value="auto">Automático</option>
-          <option value="dark">Escuro</option>
-          <option value="light">Claro</option>
-          <option value="sepia">Sépia</option>
-        </select>
-      </label>
-      <label>Largura da página
-        <select name="width">
-          <option value="narrow">Estreita</option>
-          <option value="medium">Média</option>
-          <option value="wide">Larga</option>
-        </select>
-      </label>
-      <label>Escurecer a tela
-        <input type="range" name="dim" min="0" max="60" step="5">
-      </label>
-      <label class="check"><input type="checkbox" name="autoHide"> Ocultar barras ao rolar</label>
-      <label class="check"><input type="checkbox" name="awake"> Manter a tela acesa</label>
-      <label class="check"><input type="checkbox" name="eco"> Modo econômico (menos páginas na memória)</label>
-      <p class="hint">Atalhos: seta esquerda e direita trocam de capítulo. Toque na página para mostrar ou ocultar as barras.</p>
-      <button class="btn">Fechar</button>
+      <header class="sh-head">
+        <h2 id="st-title">Ajustes</h2>
+        <button class="icon" aria-label="Fechar ajustes">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </header>
+
+      <div class="tabs" role="tablist" aria-label="Seções dos ajustes">
+        <button type="button" role="tab" id="t-look" aria-controls="p-look" aria-selected="true">Visual</button>
+        <button type="button" role="tab" id="t-read" aria-controls="p-read" aria-selected="false" tabindex="-1">Leitura</button>
+        <button type="button" role="tab" id="t-screen" aria-controls="p-screen" aria-selected="false" tabindex="-1">Tela</button>
+      </div>
+
+      <div class="panels">
+        <!-- Visual -->
+        <section role="tabpanel" id="p-look" aria-labelledby="t-look" tabindex="0">
+          <fieldset>
+            <legend>Tema</legend>
+            <div class="themes">
+              <label class="theme"><input type="radio" name="theme" value="auto"><i class="sw sw-auto"></i><span>Automático</span></label>
+              <label class="theme"><input type="radio" name="theme" value="dark"><i class="sw sw-dark"></i><span>Escuro</span></label>
+              <label class="theme"><input type="radio" name="theme" value="amoled"><i class="sw sw-amoled"></i><span>Preto</span></label>
+              <label class="theme"><input type="radio" name="theme" value="light"><i class="sw sw-light"></i><span>Claro</span></label>
+              <label class="theme"><input type="radio" name="theme" value="sepia"><i class="sw sw-sepia"></i><span>Sépia</span></label>
+              <label class="theme"><input type="radio" name="theme" value="custom"><i class="sw sw-custom"></i><span>Personalizado</span></label>
+            </div>
+          </fieldset>
+
+          <label class="switch" id="bgrow" hidden>
+            <span>Cor de fundo</span>
+            <input class="color" type="color" name="bg" value="#14161b">
+          </label>
+
+          <fieldset>
+            <legend>Cor de destaque</legend>
+            <div class="dots">
+              <label class="dot" style="--c:#8bd3a3"><input type="radio" name="accent" value="#8bd3a3" aria-label="Menta"><i></i></label>
+              <label class="dot" style="--c:#7cb7f5"><input type="radio" name="accent" value="#7cb7f5" aria-label="Azul"><i></i></label>
+              <label class="dot" style="--c:#b79cf5"><input type="radio" name="accent" value="#b79cf5" aria-label="Violeta"><i></i></label>
+              <label class="dot" style="--c:#f28fb0"><input type="radio" name="accent" value="#f28fb0" aria-label="Rosa"><i></i></label>
+              <label class="dot" style="--c:#f2b866"><input type="radio" name="accent" value="#f2b866" aria-label="Âmbar"><i></i></label>
+              <label class="dot" style="--c:#f28b7a"><input type="radio" name="accent" value="#f28b7a" aria-label="Coral"><i></i></label>
+              <label class="dot custom"><input type="color" name="accentc" aria-label="Escolher outra cor"><i></i></label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Tamanho da interface</legend>
+            <div class="seg">
+              <label><input type="radio" name="ui" value="s"><span>Pequeno</span></label>
+              <label><input type="radio" name="ui" value="m"><span>Médio</span></label>
+              <label><input type="radio" name="ui" value="l"><span>Grande</span></label>
+            </div>
+          </fieldset>
+
+          <label class="switch"><span>Barra de progresso no topo</span><input type="checkbox" name="showBar" role="switch"></label>
+          <label class="switch"><span>Contador de páginas</span><input type="checkbox" name="showCount" role="switch"></label>
+        </section>
+
+        <!-- Leitura -->
+        <section role="tabpanel" id="p-read" aria-labelledby="t-read" tabindex="0" hidden>
+          <label class="slider">
+            <span class="lbl">Largura da página <span data-out="width" aria-hidden="true"></span></span>
+            <input type="range" name="width" min="40" max="100" step="5">
+            <small>Em relação à largura da tela. No celular, a página já ocupa quase tudo.</small>
+          </label>
+          <label class="slider">
+            <span class="lbl">Espaço entre páginas <span data-out="gap" aria-hidden="true"></span></span>
+            <input type="range" name="gap" min="0" max="48" step="2">
+          </label>
+          <label class="slider">
+            <span class="lbl">Cantos arredondados <span data-out="radius" aria-hidden="true"></span></span>
+            <input type="range" name="radius" min="0" max="24" step="2">
+          </label>
+          <label class="slider">
+            <span class="lbl">Velocidade da rolagem automática <span data-out="speed" aria-hidden="true"></span></span>
+            <input type="range" name="speed" min="1" max="20" step="1">
+          </label>
+
+          <label class="switch"><span>Ocultar barras ao rolar</span><input type="checkbox" name="autoHide" role="switch"></label>
+          <label class="switch"><span>Lembrar onde parei</span><input type="checkbox" name="remember" role="switch"></label>
+          <label class="switch"><span>Abrir o próximo capítulo ao fim da rolagem automática</span><input type="checkbox" name="autoNext" role="switch"></label>
+
+          <p class="hint">Atalhos: setas esquerda e direita trocam de capítulo, A liga a rolagem automática e F ativa a tela cheia. Toque na página para mostrar ou ocultar as barras.</p>
+        </section>
+
+        <!-- Tela -->
+        <section role="tabpanel" id="p-screen" aria-labelledby="t-screen" tabindex="0" hidden>
+          <label class="slider">
+            <span class="lbl">Escurecer a tela <span data-out="dim" aria-hidden="true"></span></span>
+            <input type="range" name="dim" min="0" max="80" step="5">
+          </label>
+          <label class="slider">
+            <span class="lbl">Luz quente (menos luz azul) <span data-out="warm" aria-hidden="true"></span></span>
+            <input type="range" name="warm" min="0" max="100" step="5">
+          </label>
+
+          <label class="switch"><span>Manter a tela acesa</span><input type="checkbox" name="awake" role="switch"></label>
+          <label class="switch">
+            <span>Modo econômico<small>Mantém menos páginas na memória. Ideal para aparelhos mais simples.</small></span>
+            <input type="checkbox" name="eco" role="switch">
+          </label>
+        </section>
+      </div>
+
+      <footer class="sh-foot">
+        <button class="btn alt" type="button" id="reset">Restaurar padrões</button>
+        <button class="btn">Concluir</button>
+      </footer>
     </form>
   </dialog>
 

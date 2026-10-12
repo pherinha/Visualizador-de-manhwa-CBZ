@@ -1,70 +1,94 @@
 @charset "UTF-8";
 
+/* ==========================================================================
+   Tokens
+   O JS só sobrescreve estas variáveis quando o leitor personaliza algo
+   (cor de destaque, tema personalizado, largura, espaço, cantos).
+   ========================================================================== */
 :root {
-  --bg: #16181d;
-  --sf: #1f2229;
-  --sf2: #2b2f39;
-  --tx: #ebe9e4;
-  --mu: #a9aebb;
-  --ln: #3b404c;
+  --bg: #121316;
+  --sf: #1b1d22;
+  --sf2: #272a31;
+  --tx: #ececea;
+  --mu: #9ea3af;
+  --ln: #2f333b;
   --ac: #8bd3a3;
-  --onac: #0f2318;
+  --onac: #101214;
   --logo: invert(0.88);
-  --col: 40rem;
+  --col: 100%;
+  --gap: 0px;
+  --rad: 0px;
+  --r: 0.875rem;
   --bar: calc(3.75rem + env(safe-area-inset-top));
   color-scheme: dark;
 }
-:root[data-width="narrow"] {
-  --col: 30rem;
+:root[data-ui="s"] {
+  font-size: 87.5%;
 }
-:root[data-width="wide"] {
-  --col: 52rem;
+:root[data-ui="l"] {
+  font-size: 112.5%;
+}
+
+:root[data-theme="amoled"] {
+  --bg: #000;
+  --sf: #0b0b0c;
+  --sf2: #19191c;
+  --ln: #25262a;
+  --mu: #8d929e;
 }
 :root[data-theme="light"] {
-  --bg: #eceef2;
+  --bg: #f2f3f5;
   --sf: #fff;
-  --sf2: #e1e4ea;
-  --tx: #1b1e24;
-  --mu: #555b68;
-  --ln: #c5cad4;
-  --ac: #17603d;
+  --sf2: #e7e9ed;
+  --tx: #17191d;
+  --mu: #5b616d;
+  --ln: #d6dae1;
+  --ac: #2f7a52;
   --onac: #fff;
   --logo: none;
   color-scheme: light;
 }
 :root[data-theme="sepia"] {
-  --bg: #e8dcc3;
-  --sf: #f3ead6;
-  --sf2: #dccfb2;
+  --bg: #ebe0c8;
+  --sf: #f5ecd8;
+  --sf2: #e0d3b5;
   --tx: #3a3125;
-  --mu: #665a46;
-  --ln: #c4b593;
-  --ac: #2c6341;
+  --mu: #6a5d49;
+  --ln: #cdbf9d;
+  --ac: #2f7a52;
   --onac: #fff;
   --logo: none;
   color-scheme: light;
 }
 @media (prefers-color-scheme: light) {
   :root[data-theme="auto"] {
-    --bg: #eceef2;
+    --bg: #f2f3f5;
     --sf: #fff;
-    --sf2: #e1e4ea;
-    --tx: #1b1e24;
-    --mu: #555b68;
-    --ln: #c5cad4;
-    --ac: #17603d;
+    --sf2: #e7e9ed;
+    --tx: #17191d;
+    --mu: #5b616d;
+    --ln: #d6dae1;
+    --ac: #2f7a52;
     --onac: #fff;
     --logo: none;
     color-scheme: light;
   }
 }
 
+/* ==========================================================================
+   Base
+   ========================================================================== */
 * {
   box-sizing: border-box;
   margin: 0;
 }
 [hidden] {
   display: none !important;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 body {
   background: var(--bg);
@@ -76,6 +100,7 @@ body {
     Roboto,
     sans-serif;
   min-height: 100dvh;
+  overflow-x: hidden;
 }
 :focus-visible {
   outline: 3px solid var(--ac);
@@ -95,7 +120,7 @@ body {
   top: -4rem;
   z-index: 99;
   padding: 0.75rem 1rem;
-  border-radius: 0.75rem;
+  border-radius: var(--r);
   background: var(--ac);
   color: var(--onac);
 }
@@ -103,7 +128,9 @@ body {
   top: 0.5rem;
 }
 
-/* Botões e campos (alvos de toque de 48px) */
+/* ==========================================================================
+   Botões e campos (alvos de toque de 48px)
+   ========================================================================== */
 .icon,
 .btn {
   display: inline-grid;
@@ -112,12 +139,17 @@ body {
   cursor: pointer;
   font: inherit;
   color: inherit;
+  transition: transform 0.12s;
+}
+.icon:active,
+.btn:active {
+  transform: scale(0.96);
 }
 .icon {
   flex: none;
   width: 3rem;
   height: 3rem;
-  border-radius: 0.75rem;
+  border-radius: var(--r);
   background: none;
 }
 .icon svg {
@@ -129,10 +161,21 @@ body {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.icon .on,
+.icon[aria-pressed="true"] .off {
+  display: none;
+}
+.icon[aria-pressed="true"] .on {
+  display: block;
+}
+.icon[aria-pressed="true"]#play {
+  background: var(--ac);
+  color: var(--onac);
+}
 .btn {
   min-height: 3rem;
   padding: 0 1.5rem;
-  border-radius: 0.75rem;
+  border-radius: var(--r);
   background: var(--ac);
   color: var(--onac);
   font-weight: 600;
@@ -159,8 +202,8 @@ select {
   font: inherit;
   color: var(--tx);
   background: var(--sf2);
-  border: 1px solid var(--ln);
-  border-radius: 0.75rem;
+  border: 0;
+  border-radius: var(--r);
 }
 .select {
   position: relative;
@@ -187,7 +230,9 @@ select {
   pointer-events: none;
 }
 
-/* Barras: ficam fora da área de leitura e somem ao rolar */
+/* ==========================================================================
+   Barras: ficam fora da leitura e somem ao rolar
+   ========================================================================== */
 .progress {
   position: fixed;
   inset: 0 0 auto;
@@ -209,7 +254,7 @@ select {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  padding: calc(0.375rem + env(safe-area-inset-top)) 0.5rem 0.375rem;
+  padding: calc(0.375rem + env(safe-area-inset-top)) calc(0.5rem + env(safe-area-inset-right)) 0.375rem calc(0.5rem + env(safe-area-inset-left));
   background: var(--sf);
   border-bottom: 1px solid var(--ln);
   transition: transform 0.25s;
@@ -222,21 +267,28 @@ select {
   translate: -50% 0;
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.125rem;
   padding: 0.375rem;
   background: var(--sf);
   border: 1px solid var(--ln);
   border-radius: 999px;
-  box-shadow: 0 0.5rem 1.5rem #0006;
+  box-shadow: 0 0.5rem 1.5rem #0005;
   transition: transform 0.25s;
 }
 .dock .icon {
   border-radius: 999px;
 }
+.sep {
+  width: 1px;
+  height: 1.5rem;
+  margin: 0 0.25rem;
+  background: var(--ln);
+}
 .count {
-  min-width: 5rem;
+  min-width: 4.75rem;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 .immersive .topbar {
   transform: translateY(-100%);
@@ -249,7 +301,39 @@ select {
   transform: none;
 }
 
-/* Boas-vindas */
+/* Avisos */
+.notice {
+  position: fixed;
+  z-index: 35;
+  top: calc(var(--bar) + 0.5rem);
+  left: 50%;
+  translate: -50% 0;
+  width: min(calc(100% - 2rem), 28rem);
+  padding: 0.75rem 1rem;
+  background: var(--sf2);
+  border: 1px solid var(--ln);
+  border-radius: var(--r);
+  text-align: center;
+}
+.toast {
+  position: fixed;
+  z-index: 45;
+  left: 50%;
+  bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  translate: -50% 0;
+  max-width: min(calc(100% - 2rem), 24rem);
+  padding: 0.625rem 1rem;
+  background: var(--tx);
+  color: var(--bg);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   Boas-vindas
+   ========================================================================== */
 .welcome {
   position: relative;
   min-height: 100dvh;
@@ -265,19 +349,22 @@ select {
   content: "";
   position: absolute;
   inset: 0;
-  background: url("grain.gif");
-  opacity: 0.06;
+  background: url("../../grain.gif");
+  opacity: 0.05;
   pointer-events: none;
 }
 .welcome > * {
   position: relative;
 }
 .welcome p {
-  max-width: 30rem;
+  max-width: 28rem;
   color: var(--mu);
 }
+.welcome .sub {
+  font-size: 0.9rem;
+}
 .logo {
-  width: 6rem;
+  width: 5.5rem;
   filter: var(--logo);
 }
 h1 {
@@ -285,24 +372,30 @@ h1 {
   line-height: 1.15;
   letter-spacing: -0.02em;
 }
-.drag .welcome {
-  outline: 3px dashed var(--ac);
-  outline-offset: -1rem;
+.drag::after {
+  content: "Solte os arquivos .cbz para abrir";
+  position: fixed;
+  inset: 0.75rem;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  border: 3px dashed var(--ac);
+  border-radius: 1.25rem;
+  background: #000a;
+  color: #fff;
+  font-weight: 600;
+  pointer-events: none;
 }
 
-/* Leitura */
-.notice {
-  max-width: var(--col);
-  margin: calc(var(--bar) + 0.5rem) auto 0;
-  padding: 0.75rem 1rem;
-  background: var(--sf2);
-  border-radius: 0.75rem;
-}
+/* ==========================================================================
+   Leitura
+   ========================================================================== */
 .reader {
   display: flex;
   flex-direction: column;
-  gap: var(--gap, 0);
-  max-width: var(--col);
+  gap: var(--gap);
+  /* nunca menor que ~18rem, mesmo se a largura escolhida for pequena no celular */
+  max-width: max(var(--col), min(100%, 18rem));
   margin: var(--bar) auto 0;
   overflow-anchor: none;
 }
@@ -312,6 +405,8 @@ h1 {
   aspect-ratio: var(--ar, 2 / 3);
   background: var(--sf);
   color: var(--mu);
+  border-radius: var(--rad);
+  overflow: hidden;
 }
 .img {
   display: block;
@@ -328,7 +423,7 @@ h1 {
   display: grid;
   justify-items: center;
   gap: 1rem;
-  max-width: var(--col);
+  max-width: max(var(--col), min(100%, 24rem));
   margin: 0 auto;
   padding: 2.5rem 1rem calc(7rem + env(safe-area-inset-bottom));
   text-align: center;
@@ -343,65 +438,378 @@ h1 {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: #000;
   pointer-events: none;
 }
 
-/* Ajustes (folha inferior no celular) */
+/* ==========================================================================
+   Ajustes: folha inferior no celular, painel lateral no desktop
+   (o painel não escurece a página, então dá para ver a mudança ao vivo)
+   ========================================================================== */
 dialog {
   width: 100%;
-  max-width: 30rem;
+  max-width: 32rem;
+  max-height: none;
+  height: min(36rem, 78dvh);
   margin: auto auto 0;
   padding: 0;
+  overflow: hidden;
   color: var(--tx);
   background: var(--sf);
   border: 1px solid var(--ln);
+  border-bottom: 0;
   border-radius: 1.25rem 1.25rem 0 0;
+  box-shadow: 0 -0.5rem 2rem #0004;
+}
+dialog[open] {
+  display: flex;
+  animation: sheet 0.25s ease-out;
 }
 dialog::backdrop {
-  background: #0008;
+  background: transparent;
 }
 .sheet {
-  display: grid;
-  gap: 1rem;
-  padding: 1.25rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
 }
-.sheet label {
-  display: grid;
-  gap: 0.25rem;
-  font-weight: 600;
-}
-.sheet .check {
+.sh-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.5rem 0 1.25rem;
+}
+.sh-head h2 {
+  font-size: 1.125rem;
+}
+.tabs {
+  display: flex;
+  padding: 0 0.75rem;
+  border-bottom: 1px solid var(--ln);
+}
+.tabs button {
+  flex: 1;
+  min-height: 3rem;
+  padding: 0 0.5rem;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--mu);
+  font: inherit;
+  cursor: pointer;
+}
+.tabs button[aria-selected="true"] {
+  color: var(--tx);
+  font-weight: 600;
+  border-bottom-color: var(--ac);
+}
+.panels {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.panels > section {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.25rem 1.25rem 1.5rem;
+}
+.sh-foot {
+  display: flex;
   gap: 0.75rem;
-  min-height: 2.75rem;
+  padding: 0.75rem 1.25rem calc(0.75rem + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--ln);
+}
+.sh-foot .btn {
+  flex: 1;
+  padding: 0 1rem;
+}
+
+fieldset {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+legend {
+  padding: 0;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+small {
+  display: block;
+  color: var(--mu);
+  font-size: 0.8125rem;
   font-weight: 400;
-}
-.check input {
-  width: 1.5rem;
-  height: 1.5rem;
-  accent-color: var(--ac);
-}
-input[type="range"] {
-  width: 100%;
-  min-height: 2.75rem;
-  accent-color: var(--ac);
+  line-height: 1.35;
 }
 .hint {
   color: var(--mu);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
+
+/* Temas (miniaturas) */
+.themes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+.theme {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.375rem;
+  padding: 0.75rem 0.25rem 0.5rem;
+  border: 1px solid var(--ln);
+  border-radius: var(--r);
+  font-size: 0.8125rem;
+  color: var(--mu);
+  text-align: center;
+  cursor: pointer;
+}
+.theme input,
+.dot input,
+.seg input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.sw {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px #8886;
+}
+.sw-auto {
+  background: linear-gradient(135deg, #121316 50%, #f2f3f5 50%);
+}
+.sw-dark {
+  background: #121316;
+}
+.sw-amoled {
+  background: #000;
+}
+.sw-light {
+  background: #f2f3f5;
+}
+.sw-sepia {
+  background: #ebe0c8;
+}
+.sw-custom {
+  background: var(--cbg, #14161b);
+}
+.theme input:checked + .sw,
+.dot input:checked + i,
+.dot.on i {
+  outline: 2px solid var(--tx);
+  outline-offset: 3px;
+}
+.theme input:checked ~ span {
+  color: var(--tx);
+  font-weight: 600;
+}
+.theme input:focus-visible + .sw,
+.dot input:focus-visible + i {
+  outline: 3px solid var(--ac);
+  outline-offset: 3px;
+}
+
+/* Cor de destaque */
+.dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.dot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.dot i {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: var(--c);
+}
+.dot.custom i {
+  background: conic-gradient(#f66, #fd6, #6d8, #6df, #86f, #f6c, #f66);
+}
+
+/* Controle segmentado */
+.seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: var(--sf2);
+  border-radius: var(--r);
+}
+.seg label {
+  position: relative;
+  display: grid;
+}
+.seg span {
+  display: grid;
+  place-items: center;
+  min-height: 2.5rem;
+  border-radius: 0.625rem;
+  font-size: 0.9rem;
+  color: var(--mu);
+}
+.seg input:checked + span {
+  background: var(--sf);
+  color: var(--tx);
+  font-weight: 600;
+  box-shadow: 0 1px 3px #0003;
+}
+.seg input:focus-visible + span {
+  outline: 3px solid var(--ac);
+}
+
+/* Interruptores */
+.switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3rem;
+  cursor: pointer;
+}
+.switch input[type="checkbox"] {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 2.75rem;
+  height: 1.625rem;
+  margin: 0;
+  background: var(--sf2);
+  border: 1px solid var(--ln);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.switch input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 50%;
+  background: var(--mu);
+  transition:
+    transform 0.2s,
+    background 0.2s;
+}
+.switch input[type="checkbox"]:checked {
+  background: var(--ac);
+  border-color: var(--ac);
+}
+.switch input[type="checkbox"]:checked::after {
+  transform: translateX(1.125rem);
+  background: var(--onac);
+}
+.color {
+  flex: none;
+  width: 3rem;
+  height: 2.25rem;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--ln);
+  border-radius: 0.625rem;
+  cursor: pointer;
+}
+
+/* Controles deslizantes */
+.slider {
+  display: grid;
+  gap: 0.125rem;
+}
+.lbl {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.lbl [data-out] {
+  flex: none;
+  color: var(--mu);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+input[type="range"] {
+  appearance: none;
+  width: 100%;
+  min-height: 2.75rem;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sf2);
+}
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sf2);
+}
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-top: calc(-0.75rem + 2px);
+  border: 0;
+  border-radius: 50%;
+  background: var(--ac);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ac);
+}
+
 @media (min-width: 40rem) {
   dialog {
-    margin: auto;
-    border-radius: 1.25rem;
+    width: 24rem;
+    max-width: none;
+    height: 100dvh;
+    margin: 0 0 0 auto;
+    border: 0;
+    border-left: 1px solid var(--ln);
+    border-radius: 1.25rem 0 0 1.25rem;
+    box-shadow: -0.5rem 0 2rem #0004;
+  }
+  dialog[open] {
+    animation-name: drawer;
+  }
+}
+@keyframes sheet {
+  from {
+    opacity: 0;
+    transform: translateY(1.5rem);
+  }
+}
+@keyframes drawer {
+  from {
+    opacity: 0;
+    transform: translateX(1.5rem);
   }
 }
 
-[data-gap] {
-  --gap: 0px;
-}
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
