@@ -2,48 +2,102 @@
 <html lang="pt-BR">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
-    <title>Visualizador de Manhwa - Leitor Online de CBZ</title>
-    <meta name="description" content="Visualizador gratuito de arquivos CBZ para leitura de manhwas e quadrinhos online. Interface simples e carregamento rápido.">
-    <meta name="author" content="Lucas">
-    <link rel="stylesheet" href="style.css">
-    <script src="script.js" defer></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#16181d">
+  <title>Visualizador de Manhwa</title>
+  <meta name="description" content="Leia manhwas em CBZ direto do navegador, com rolagem contínua e carregamento leve.">
+  <meta name="author" content="Lucas">
+  <link rel="icon" href="frog.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/styles/style.css">
+  <script src="assets/js/vendor/jszip.min.js" defer></script>
+  <script src="assets/js/script.js" defer></script>
 </head>
 
 <body>
-    <div class="app">
-        <header class="app__header">
-            <figure class="app__logo">
-                <img src="frog.svg" alt="Logo do Visualizador de Manhwa">
-            </figure>
+  <a class="skip" href="#viewer">Ir para a leitura</a>
+  <div class="progress" aria-hidden="true"><i id="bar"></i></div>
 
-            <div class="upload">
-                <label for="upload-input"><img src="file-plus.svg" alt="">Escolha os arquivos</label>
-                <input type="file" id="upload-input" class="upload__input hidden-input" accept=".cbz" multiple>
-            </div>
-
-            <div class="chapter-nav" id="chapter-nav" style="display: none;">
-                <label for="chapter-select">Capítulo:</label>
-                <select id="chapter-select" class="chapter-nav__select"></select>
-            </div>
-        </header>
-
-        <main class="viewer" id="viewer">
-            <p>Por favor, selecione um ou mais arquivos CBZ para visualizar.</p>
-        </main>
-
-        <footer class="app__footer">
-            <p>Role para ver todas as páginas do capítulo carregado. Use os controles abaixo para mudar de capítulo.</p>
-            <div class="chapter-controls">
-                <button id="chapter-prev" class="chapter-controls__button">Capítulo Anterior</button>
-                <button id="chapter-next" class="chapter-controls__button">Próximo Capítulo</button>
-            </div>
-        </footer>
+  <header class="topbar" id="topbar">
+    <button class="icon" id="open" type="button" data-open aria-label="Abrir arquivos CBZ">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <path d="M14 2v6h6M12 18v-6M9 15h6" />
+      </svg>
+    </button>
+    <div class="select" id="chapters" hidden>
+      <label class="sr" for="chapter">Capítulo</label>
+      <select id="chapter"></select>
     </div>
+  </header>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <main id="viewer" tabindex="-1">
+    <p class="notice" id="notice" role="status" hidden></p>
+
+    <section class="welcome" id="welcome">
+      <img class="logo" src="frog.svg" alt="">
+      <h1>Visualizador de Manhwa</h1>
+      <p>Abra capítulos em CBZ do seu aparelho e leia rolando a tela. Os arquivos não saem do seu navegador.</p>
+      <button class="btn" type="button" data-open>Escolher arquivos</button>
+      <p>Ou arraste os arquivos .cbz para esta página.</p>
+    </section>
+
+    <div class="reader" id="reader" hidden></div>
+
+    <footer class="end" id="end" hidden>
+      <p id="endtitle"></p>
+      <div>
+        <button class="btn alt" type="button" data-nav="-1">Capítulo anterior</button>
+        <button class="btn" type="button" data-nav="1">Próximo capítulo</button>
+      </div>
+    </footer>
+  </main>
+
+  <nav class="dock" id="dock" aria-label="Capítulos e ajustes" hidden>
+    <button class="icon" type="button" data-nav="-1" aria-label="Capítulo anterior"><svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M15 18l-6-6 6-6" />
+      </svg></button>
+    <span class="count"><span class="sr">Página </span><span id="cur">1</span><span aria-hidden="true"> / </span><span class="sr"> de </span><span id="tot">1</span></span>
+    <button class="icon" type="button" data-nav="1" aria-label="Próximo capítulo"><svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M9 18l6-6-6-6" />
+      </svg></button>
+    <button class="icon" type="button" id="opensettings" aria-haspopup="dialog" aria-label="Ajustes de leitura"><svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
+      </svg></button>
+  </nav>
+
+  <dialog id="settings" aria-labelledby="st-title">
+    <form method="dialog" class="sheet">
+      <h2 id="st-title">Ajustes de leitura</h2>
+      <label>Tema
+        <select name="theme">
+          <option value="auto">Automático</option>
+          <option value="dark">Escuro</option>
+          <option value="light">Claro</option>
+          <option value="sepia">Sépia</option>
+        </select>
+      </label>
+      <label>Largura da página
+        <select name="width">
+          <option value="narrow">Estreita</option>
+          <option value="medium">Média</option>
+          <option value="wide">Larga</option>
+        </select>
+      </label>
+      <label>Escurecer a tela
+        <input type="range" name="dim" min="0" max="60" step="5">
+      </label>
+      <label class="check"><input type="checkbox" name="autoHide"> Ocultar barras ao rolar</label>
+      <label class="check"><input type="checkbox" name="awake"> Manter a tela acesa</label>
+      <label class="check"><input type="checkbox" name="eco"> Modo econômico (menos páginas na memória)</label>
+      <p class="hint">Atalhos: seta esquerda e direita trocam de capítulo. Toque na página para mostrar ou ocultar as barras.</p>
+      <button class="btn">Fechar</button>
+    </form>
+  </dialog>
+
+  <input type="file" id="file" accept=".cbz,.zip" multiple hidden>
+  <div class="dim" id="dim" aria-hidden="true" hidden></div>
+  <p class="sr" id="live" role="status"></p>
 </body>
 
 </html>
