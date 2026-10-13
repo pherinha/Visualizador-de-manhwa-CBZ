@@ -497,10 +497,18 @@
     if (out.added) parts.push(plural(out.added, "capítulo adicionado", "capítulos adicionados"));
     if (out.dup) parts.push(plural(out.dup, "já estava na biblioteca", "já estavam na biblioteca"));
     if (out.failed.length) parts.push(plural(out.failed.length, "falhou", "falharam"));
-    let text = parts.join(", ") || "Nada novo para adicionar";
-    if (out.stopped === "espaço") text += ". Parou: sem espaço no aparelho.";
-    if (out.stopped === "cancelado") text += ". Importação cancelada.";
-    if (out.stopped || out.failed.length) warn(text, 10000); else toast(text);
+    let text = !out.added && (out.stopped === "espaço" || out.failed.length)
+      ? "Não foi possível adicionar os capítulos."
+      : parts.join(", ") || "Nada novo para adicionar";
+    if (out.stopped === "espaço") {
+      const sp = out.space;
+      text += ` O navegador recusou gravar ${fmt(out.size)}`
+        + (sp ? ` (livre segundo ele: ${fmt(Math.max(0, sp.quota - sp.usage))}; limite do site: ${fmt(sp.quota)})` : "") + ".";
+      if (sp && sp.quota < 2e9) text += " Esse limite é pequeno: costuma acontecer em aba anônima ou com o aparelho quase cheio.";
+      text += ` [${out.detail}]`;
+    } else if (out.stopped === "cancelado") text += ". Importação cancelada.";
+    if (out.errors.length) text += ` [${out.errors[0]}]`;
+    if (out.stopped || out.failed.length) warn(text, 30000); else toast(text);
     if (view === "library") await showLibrary();
   });
 

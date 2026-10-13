@@ -1,6 +1,49 @@
+# Regras de cache para Cloudflare Pages e Netlify (mesmo formato nas duas).
+# Coloque este arquivo na RAIZ do site (a pasta publicada).
+#
+# Por que "no-cache" no app e cache longo só no JSZip:
+#   os arquivos do app NÃO têm hash no nome (style.css, script.js...). "no-cache" faz o navegador
+#   perguntar ao servidor se mudou (resposta rápida 304 se não mudou). Assim, quando você publica
+#   uma versão nova, ninguém fica preso na antiga e o service worker instala arquivos atuais.
+#
+# As regras abaixo NÃO se sobrepõem de propósito: cada arquivo cai em uma regra só.
+# Se criar um arquivo .js ou .css novo, adicione uma linha para ele.
+
+/
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
+
 /sw.js
   Cache-Control: no-cache
 
 /manifest.webmanifest
   Content-Type: application/manifest+json
   Cache-Control: no-cache
+
+/assets/styles/*
+  Cache-Control: no-cache
+
+/assets/js/script.js
+  Cache-Control: no-cache
+
+/assets/js/library.js
+  Cache-Control: no-cache
+
+# Biblioteca de terceiros: nunca muda. Se atualizar o JSZip, troque o nome do arquivo.
+/assets/js/vendor/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Imagens e ícones: 1 dia, para o caso de você trocá-los.
+/icons/*
+  Cache-Control: public, max-age=86400
+
+/frog.svg
+  Cache-Control: public, max-age=86400
+
+/grain.gif
+  Cache-Control: public, max-age=86400
+
+/favicon.ico
+  Cache-Control: public, max-age=86400

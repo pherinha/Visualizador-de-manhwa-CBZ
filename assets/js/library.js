@@ -40,23 +40,34 @@
   // ===== OPFS =====
   const hasOPFS = () => Boolean(navigator.storage?.getDirectory && window.FileSystemFileHandle?.prototype?.createWritable);
   let dirp;
-  const dir = () => (dirp ||= navigator.storage.getDirectory().then((r) => r.getDirectoryHandle("cbz", { create: true })));
+  const dir = () => (dirp ||= navigator.storage.getDirectory()
+    .then((r) => r.getDirectoryHandle("cbz", { create: true }))
+    .catch((e) => { dirp = null; throw e; }));
 
+  // Tenta o OPFS; se falhar por qualquer motivo (inclusive falta de espaço para o arquivo temporário
+  // que o Chrome usa ao gravar), tenta o IndexedDB antes de desistir.
   async function writeFile(id, file) {
+    let first = null;
     if (hasOPFS()) {
-      const d = await dir();
       try {
-        const fh = await d.getFileHandle(id + ".cbz", { create: true });
-        await file.stream().pipeTo(await fh.createWritable()); // copia em fluxo, sem carregar o arquivo na memória
-        return "opfs";
-      } catch (e) {
-        await d.removeEntry(id + ".cbz").catch(() => {});
-        if (e?.name === "QuotaExceededError") throw e;
-        // qualquer outro problema no OPFS: cai para o IndexedDB
-      }
+        const d = await dir();
+        try {
+          const fh = await d.getFileHandle(id + ".cbz", { create: true });
+          await file.stream().pipeTo(await fh.createWritable()); // copia em fluxo, sem carregar o arquivo na memória
+          return "opfs";
+        } catch (e) {
+          await d.removeEntry(id + ".cbz").catch(() => {});
+          throw e;
+        }
+      } catch (e) { first = e; }
     }
-    await put("blobs", { id, blob: file });
-    return "idb";
+    try {
+      await put("blobs", { id, blob: file });
+      return "idb";
+    } catch (e) {
+      if (first) e.opfs = `${first.name}: ${first.message}`;
+      throw e;
+    }
   }
   async function removeFile(ch) {
     if (ch.store === "opfs") { try { await (await dir()).removeEntry(ch.id + ".cbz"); } catch {} }
@@ -68,8 +79,9 @@
     if (!row) throw new Error("O arquivo deste capítulo não está mais no aparelho.");
     return row.blob;
   }
-  async function room() {
-    try { const e = await navigator.storage.estimate(); return e.quota - e.usage; } catch { return Infinity; }
+  // Só para explicar o erro ao leitor: o navegador apenas estima o espaço, por isso não bloqueamos por ele.
+  async function space() {
+    try { const e = await navigator.storage.estimate(); return { quota: e.quota, usage: e.usage }; } catch { return null; }
   }
 
   // ===== Obras e capítulos =====
@@ -202,7 +214,7 @@
 
   // ===== Importação =====
   async function importGroups(groups, { onProgress = () => {}, signal } = {}) {
-    const out = { added: 0, dup: 0, failed: [], works: 0, stopped: null };
+    const out = { added: 0, dup: 0, failed: [], errors: [], works: 0, stopped: null, detail: "", size: 0, space: null };
     const known = new Set((await all("chapters")).map((c) => c.sig));
     const total = groups.reduce((n, g) => n + g.items.length, 0);
     let done = 0;
@@ -216,7 +228,6 @@
         if (known.has(sig)) { out.dup++; done++; continue; }
         let id = null, store = null;
         try {
-          if ((await room()) < f.size * 1.1) throw Object.assign(new Error("sem espaço"), { name: "QuotaExceededError" });
           id = uid();
           store = await writeFile(id, f);
           work ||= await createWork(title);
@@ -225,8 +236,14 @@
           out.added++;
         } catch (e) {
           if (id) await removeFile({ id, store }).catch(() => {});
-          if (e?.name === "QuotaExceededError") { out.stopped = "espaço"; return out; }
+          console.error("Falha ao importar", f.name, e);
+          const info = `${e?.name || "Erro"}: ${e?.message || "sem detalhes"}${e?.opfs ? ` | OPFS: ${e.opfs}` : ""}`;
+          if (e?.name === "QuotaExceededError") {
+            Object.assign(out, { stopped: "espaço", detail: info, size: f.size, space: await space() });
+            return out;
+          }
           out.failed.push(f.name);
+          out.errors.push(info);
         }
         done++;
       }

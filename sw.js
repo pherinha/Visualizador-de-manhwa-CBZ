@@ -4,7 +4,7 @@
 
    >>> A cada publicação que mudar qualquer arquivo abaixo, aumente o número de VERSAO. <<<
 */
-const VERSAO = 2;
+const VERSAO = 3;
 const CACHE = `manhwa-v${VERSAO}`;
 
 // Sem estes o app não abre: se algum falhar, a instalação do service worker falha de propósito.
