@@ -2,13 +2,15 @@
   "use strict";
 
   const E = Object.fromEntries(
-    "topbar open chapters chapter viewer notice toast welcome reader end endtitle dock count cur tot prog bar dim live settings file play fs reset"
+    "topbar back ttl open more topsettings fs chapters chapter viewer notice toast update doupdate welcome library resume grid store work workresume chaps reader end endtitle dock count cur tot prog bar dim live settings file folder play reset installrow install addsheet imp impbody impgo impcancel impclose act acttitle actbody"
       .split(" ").map((id) => [id, document.getElementById(id)])
   );
   const form = E.settings.querySelector("form").elements;
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
   const IMG = /\.(jpe?g|png|gif|webp|avif)$/i;
   const root = document.documentElement;
+  const APP = "Visualizador de Manhwa";
+  let view = "library"; // library | work | reader
 
   // ===== Ajustes (salvos no aparelho) =====
   const KEY = "cbz-reader:v2", OLD = "cbz-reader:v1", POS = "cbz-reader:pos";
@@ -80,7 +82,7 @@
     E.dim.style.background = `rgba(${Math.round(255 * k)},${Math.round(130 * k)},${Math.round(20 * k)},${a})`;
     E.dim.hidden = !a;
 
-    E.prog.hidden = !S.showBar;
+    syncBars();
     E.count.hidden = !S.showCount;
     document.querySelector("meta[name=theme-color]").content = getComputedStyle(document.body).backgroundColor;
   }
@@ -141,10 +143,16 @@
   });
 
   // ===== Estado =====
-  const st = { files: [], i: -1, s: 0, pages: [], want: new Set(), busy: 0, cur: 0, ar: 0, start: 0, done: false };
+  const st = { files: [], work: null, data: null, empty: true, i: -1, s: 0, pages: [], want: new Set(), busy: 0, cur: 0, ar: 0, start: 0, done: false };
   const io = {};
   const say = (m) => { E.live.textContent = m; };
-  const warn = (m) => { E.notice.textContent = m; E.notice.hidden = !m; };
+  let wt;
+  function warn(m, ms) {
+    clearTimeout(wt);
+    E.notice.textContent = m;
+    E.notice.hidden = !m;
+    if (m && ms) wt = setTimeout(() => warn(""), ms);
+  }
   let tt;
   function toast(m) {
     E.toast.textContent = m;
@@ -153,19 +161,29 @@
     tt = setTimeout(() => { E.toast.hidden = true; }, 2400);
     say(m);
   }
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const fmt = (n) => (n >= 1e9
+    ? (n / 1e9).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " GB"
+    : Math.max(1, Math.round(n / 1e6)).toLocaleString("pt-BR") + " MB");
+  const mk = (tag, cls, text) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  };
 
-  // ===== Onde parei (por capítulo, salvo no aparelho) =====
+  // ===== Onde parei (por capítulo, guardado no aparelho; a chave é a mesma "nome|tamanho" da biblioteca) =====
   const pos = store(POS) || {};
-  const fkey = (f) => f.name + "|" + f.size;
   let pt;
   function savePos(now) {
     if (!S.remember || !st.pages.length) return;
     clearTimeout(pt);
     const run = () => {
-      if (!st.pages.length || !st.files[st.i]) return;
-      pos[fkey(st.files[st.i])] = { p: st.cur, t: Date.now(), d: st.done };
+      const rec = st.files[st.i];
+      if (!st.pages.length || !rec) return;
+      pos[rec.sig] = { p: st.cur, t: Date.now(), d: st.done };
       const keys = Object.keys(pos);
-      if (keys.length > 300) keys.sort((a, b) => pos[a].t - pos[b].t).slice(0, keys.length - 300).forEach((k) => delete pos[k]);
+      if (keys.length > 2000) keys.sort((a, b) => pos[a].t - pos[b].t).slice(0, keys.length - 2000).forEach((k) => delete pos[k]);
       put(POS, pos);
     };
     now ? run() : (pt = setTimeout(run, 600));
@@ -176,40 +194,411 @@
     savePos();
   }
 
-  // ===== Abrir arquivos =====
-  function setFiles(list) {
-    const files = [...list].filter((f) => /\.(cbz|zip)$/i.test(f.name)).sort((a, b) => collator.compare(a.name, b.name));
-    if (!files.length) return warn("Nenhum arquivo .cbz encontrado. Escolha arquivos com a extensão .cbz.");
-    savePos(true); // guarda o ponto do capítulo atual antes de trocar a lista
-    reset();
-    st.files = files;
-    E.chapter.replaceChildren(...files.map((f, n) => new Option(f.name.replace(/\.(cbz|zip)$/i, ""), n)));
-    E.chapters.hidden = E.dock.hidden = false;
+  // ===== Telas: biblioteca → obra → leitor (o botão voltar do Android segue essa ordem) =====
+  const ys = {}; // posição de rolagem de cada tela
+  let covers = [];
+  const freeCovers = () => { covers.forEach((u) => URL.revokeObjectURL(u)); covers = []; };
+  function coverEl(w) {
+    const d = mk("div", "cover");
+    if (w.cover) {
+      const u = URL.createObjectURL(w.cover);
+      covers.push(u);
+      const im = new Image();
+      im.src = u; im.alt = ""; im.decoding = "async";
+      d.append(im);
+    } else d.textContent = (w.title.trim()[0] || "?").toUpperCase();
+    return d;
+  }
+  function syncBars() { E.prog.hidden = !S.showBar || view !== "reader"; }
 
-    // Retoma o último capítulo lido (e a página), se já tiver aberto estes arquivos antes
-    let start = { i: 0, p: 0 };
-    if (S.remember) {
-      let bt = 0;
-      files.forEach((f, i) => {
-        const r = pos[fkey(f)];
-        if (r && r.t > bt) { bt = r.t; start = { i, p: r.p, d: r.d }; }
-      });
-      if (start.d && start.i < files.length - 1) start = { i: start.i + 1, p: 0 };
+  function setView(v) {
+    const prev = view;
+    if (prev !== v) ys[prev] = scrollY;
+    if (prev === "reader" && v !== "reader") leaveReader();
+    view = v;
+    document.body.dataset.view = v;
+    const rd = v === "reader";
+    E.welcome.hidden = !(v === "library" && st.empty);
+    E.library.hidden = !(v === "library" && !st.empty);
+    E.work.hidden = v !== "work";
+    E.dock.hidden = E.chapters.hidden = !rd;
+    if (!rd) E.reader.hidden = E.end.hidden = true;
+    E.back.hidden = v === "library";
+    E.open.hidden = E.topsettings.hidden = v !== "library";
+    E.more.hidden = v !== "work";
+    E.ttl.hidden = rd;
+    E.fs.hidden = !rd || !document.fullscreenEnabled;
+    E.ttl.textContent = v === "work" ? st.work?.title || "" : "Biblioteca";
+    if (!rd) {
+      document.body.classList.remove("immersive");
+      if (prev !== v) scrollTo(0, ys[v] || 0);
     }
-    openChapter(start.i, start.p);
+    syncBars();
+  }
+  function leaveReader() {
+    st.s++; // cancela qualquer capítulo que ainda estivesse abrindo
+    autoStop();
+    savePos(true);
+    reset();
+    document.title = APP;
+    warn("");
+    awake();
   }
 
+  // Une obras e capítulos e calcula o que já foi lido
+  function index() {
+    const { works, chapters } = st.data;
+    const by = new Map(works.map((w) => [w.id, { w, chs: [] }]));
+    chapters.forEach((c) => by.get(c.workId)?.chs.push(c));
+    const out = [];
+    by.forEach((x) => {
+      if (!x.chs.length) return;
+      x.chs.sort((a, b) => collator.compare(a.name, b.name));
+      x.read = x.chs.filter((c) => pos[c.sig]?.d).length;
+      x.last = Math.max(0, ...x.chs.map((c) => pos[c.sig]?.t || 0));
+      out.push(x);
+    });
+    return out;
+  }
+  // Onde continuar numa obra: o último capítulo lido; se ele terminou, o próximo
+  function target(x) {
+    let best = null, bt = 0;
+    x.chs.forEach((c, i) => {
+      const r = pos[c.sig];
+      if (r && r.t > bt) { bt = r.t; best = { i, r }; }
+    });
+    if (!best) return { i: 0, p: 0, fresh: true };
+    const { i, r } = best;
+    if (r.d && i < x.chs.length - 1) return { i: i + 1, p: 0 };
+    return { i, p: r.p };
+  }
+  function fillResume(btn, x, tg, label) {
+    const ch = x.chs[tg.i], ns = "http://www.w3.org/2000/svg";
+    const txt = mk("div", "txt");
+    txt.append(mk("span", "", label), mk("strong", "", x.w.title), mk("small", "", ch.name + (tg.p ? ` · página ${tg.p + 1}` : "")));
+    const svg = document.createElementNS(ns, "svg"), path = document.createElementNS(ns, "path");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    path.setAttribute("d", "M7 4.5v15l12-7.5z");
+    svg.append(path);
+    btn.replaceChildren(coverEl(x.w), txt, svg);
+    btn.dataset.work = x.w.id;
+    btn.dataset.i = tg.i;
+    btn.dataset.p = tg.p;
+  }
+
+  async function showStorage() {
+    const u = await Library.usage();
+    E.store.textContent = u
+      ? `${fmt(u.used)} usados de ${fmt(u.quota)} neste aparelho. ` + (u.persisted ? "Seus capítulos estão protegidos contra limpeza automática." : "O navegador pode apagar estes dados se faltar espaço; instalar o app costuma ajudar.")
+      : "";
+  }
+
+  async function renderLibrary() {
+    st.data = await Library.overview();
+    const items = index();
+    st.empty = !items.length;
+    freeCovers();
+    items.sort((a, b) => b.last - a.last || b.w.added - a.w.added);
+    E.grid.replaceChildren(...items.map((x) => {
+      const b = mk("button", "card");
+      b.type = "button";
+      b.dataset.work = x.w.id;
+      b.append(coverEl(x.w), mk("b", "", x.w.title),
+        mk("small", "", plural(x.chs.length, "capítulo", "capítulos") + (x.read ? ` · ${x.read} lido${x.read > 1 ? "s" : ""}` : "")));
+      return b;
+    }));
+    const best = items.find((x) => x.last);
+    E.resume.hidden = !best;
+    if (best) fillResume(E.resume, best, target(best), "Continuar lendo");
+    showStorage();
+  }
+  async function showLibrary() {
+    try { await renderLibrary(); }
+    catch { st.empty = true; warn("Não foi possível abrir a biblioteca deste navegador.", 10000); }
+    setView("library");
+  }
+
+  async function loadWork(id) {
+    st.data = await Library.overview();
+    const x = index().find((i) => i.w.id === id);
+    if (!x) return null;
+    st.work = x.w;
+    st.files = x.chs;
+    E.chapter.replaceChildren(...x.chs.map((c, n) => new Option(c.name, n)));
+    return x;
+  }
+  function renderWork(x) {
+    freeCovers();
+    const tg = target(x);
+    fillResume(E.workresume, x, tg, tg.fresh ? "Começar a ler" : "Continuar lendo");
+    E.chaps.replaceChildren(...x.chs.map((c, n) => {
+      const r = pos[c.sig];
+      const li = mk("li", r?.d ? "read" : r ? "cur" : "");
+      const b = mk("button", "chap");
+      b.type = "button";
+      b.dataset.i = n;
+      b.append(mk("span", "nm", c.name),
+        mk("span", "stt", r?.d ? "Lido" : r ? `Pág. ${r.p + 1}${c.pages ? " de " + c.pages : ""}` : c.pages ? `${c.pages} pág.` : ""));
+      const m = mk("button", "icon");
+      m.type = "button";
+      m.dataset.chmenu = n;
+      m.setAttribute("aria-label", `Opções de ${c.name}`);
+      m.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h.01M12 12h.01M19 12h.01" style="stroke-width:3.5"/></svg>';
+      li.append(b, m);
+      return li;
+    }));
+  }
+  async function showWork(id, push) {
+    let x = null;
+    try { x = await loadWork(id); } catch {}
+    if (!x) return showLibrary();
+    if (push) { ys.work = 0; history.pushState({ v: "work", id }, ""); }
+    renderWork(x);
+    setView("work");
+  }
+  async function refreshWork() {
+    const x = await loadWork(st.work.id).catch(() => null);
+    if (!x) return history.back();
+    renderWork(x);
+    setView("work");
+  }
+  async function read(workId, i, p = 0) {
+    if (view === "library" || st.work?.id !== workId) {
+      let x = null;
+      try { x = await loadWork(workId); } catch {}
+      if (!x) return showLibrary();
+    }
+    if (view === "library") { ys.work = 0; history.pushState({ v: "work", id: workId }, ""); }
+    history.pushState({ v: "reader" }, "");
+    openChapter(i, p);
+  }
+
+  // ===== Adicionar capítulos: escolher, conferir o agrupamento e copiar para o aparelho =====
+  const imp = { sc: null, mode: "name", groups: [], ambiguous: 0, usedFolder: false, run: false, ac: null, urls: [] };
+  let existing = new Set();
+  const showSheet = (d) => { if (!d.open) d.showModal(); };
+  function pick(kind) {
+    E.addsheet.close();
+    (kind === "folder" ? E.folder : E.file).click();
+  }
+  const freeImpUrls = () => { imp.urls.forEach((u) => URL.revokeObjectURL(u)); imp.urls = []; };
+
+  async function addFiles(list) {
+    const sc = Library.scan(list);
+    if (!sc.cbz.length) return warn("Nenhum arquivo .cbz encontrado. Escolha arquivos com a extensão .cbz.", 8000);
+    warn("");
+    let works = [];
+    try { works = (await Library.overview()).works; } catch {}
+    existing = new Set(works.map((w) => Library.norm(w.title)));
+    Object.assign(imp, { sc, mode: sc.hasPath ? "folder" : "name", run: false });
+    regroup();
+    drawImport();
+    showSheet(E.imp);
+  }
+  function regroup() {
+    const r = Library.group(imp.sc, imp.mode);
+    imp.groups = r.groups;
+    imp.ambiguous = r.ambiguous;
+    imp.usedFolder = r.usedFolder;
+  }
+  function drawImport() {
+    freeImpUrls();
+    const { sc, groups } = imp;
+    const n = groups.reduce((t, g) => t + g.items.length, 0);
+    const parts = [mk("p", "", `${plural(n, "capítulo encontrado", "capítulos encontrados")} em ${plural(groups.length, "obra", "obras")}.`)];
+
+    const seg = mk("fieldset");
+    seg.innerHTML = '<legend>Agrupar obras por</legend><div class="seg"><label><input type="radio" name="mode" value="folder"><span>Pasta</span></label><label><input type="radio" name="mode" value="name"><span>Nome do arquivo</span></label></div>';
+    seg.querySelector("[value=folder]").disabled = !sc.hasPath;
+    seg.querySelector(`[value=${imp.mode}]`).checked = true;
+    parts.push(seg);
+    if (!sc.hasPath) parts.push(mk("p", "hint", "Seu aparelho não informou as pastas. Para agrupar por pasta, use Escolher pasta."));
+
+    groups.forEach((g, gi) => {
+      const row = mk("div", "grp"), top = mk("div", "grp-top");
+      if (g.poster) {
+        const u = URL.createObjectURL(g.poster);
+        imp.urls.push(u);
+        const im = new Image();
+        im.src = u; im.alt = "Poster";
+        top.append(im);
+      }
+      const inp = mk("input", "txt-in");
+      inp.type = "text"; inp.value = g.title; inp.dataset.g = gi; inp.autocomplete = "off";
+      inp.setAttribute("aria-label", "Nome da obra");
+      top.append(inp);
+      const meta = mk("div", "grp-meta");
+      meta.append(mk("span", "", plural(g.items.length, "capítulo", "capítulos")));
+      if (g.poster) meta.append(mk("span", "tag ok", "Poster encontrado"));
+      const ex = mk("span", "tag", "Já existe na biblioteca");
+      ex.dataset.ex = "";
+      ex.hidden = !existing.has(Library.norm(g.title));
+      meta.append(ex);
+      const det = mk("details"), ul = mk("ul");
+      det.append(mk("summary", "", "Ver capítulos"));
+      g.items.forEach((it) => ul.append(mk("li", "", it.file.name.replace(/\.(cbz|zip)$/i, ""))));
+      det.append(ul);
+      row.append(top, meta, det);
+      parts.push(row);
+    });
+
+    if (imp.ambiguous) parts.push(mk("p", "hint", "O poster foi ignorado porque a seleção mistura várias obras. Escolha a pasta de cada obra para usar a capa."));
+    if (sc.ignored) parts.push(mk("p", "hint", `${plural(sc.ignored, "arquivo ignorado", "arquivos ignorados")} (só .cbz, .zip e a imagem poster são usados).`));
+    E.impbody.replaceChildren(...parts);
+    E.impgo.hidden = false;
+    E.impgo.disabled = !n;
+    E.impcancel.textContent = "Cancelar";
+  }
+  E.impbody.addEventListener("change", (e) => {
+    if (e.target.name !== "mode" || imp.run) return;
+    imp.mode = e.target.value;
+    regroup();
+    drawImport();
+    E.impbody.querySelector("input[name=mode]:checked")?.focus();
+  });
+  E.impbody.addEventListener("input", (e) => {
+    const gi = e.target.dataset.g;
+    if (gi == null) return;
+    const g = imp.groups[+gi];
+    g.title = e.target.value;
+    e.target.closest(".grp").querySelector("[data-ex]").hidden = !existing.has(Library.norm(g.title));
+  });
+  const stopImport = () => { if (imp.run) imp.ac.abort(); else E.imp.close(); };
+  E.impcancel.addEventListener("click", stopImport);
+  E.impclose.addEventListener("click", stopImport);
+  E.imp.addEventListener("cancel", (e) => { if (imp.run) { e.preventDefault(); imp.ac.abort(); } });
+  E.imp.addEventListener("close", freeImpUrls);
+
+  E.impgo.addEventListener("click", async () => {
+    imp.run = true;
+    imp.ac = new AbortController();
+    freeImpUrls();
+    E.impbody.replaceChildren(mk("p", "", "Preparando…"), Object.assign(mk("div", "meter"), { innerHTML: "<i></i>" }),
+      mk("p", "hint", "Os arquivos são copiados para este aparelho e não saem dele. Pode levar um tempo."));
+    E.impgo.hidden = true;
+    E.impcancel.textContent = "Cancelar importação";
+    const msg = E.impbody.firstChild, bar = E.impbody.querySelector(".meter i");
+    let out;
+    try {
+      out = await Library.importGroups(imp.groups, {
+        signal: imp.ac.signal,
+        onProgress: ({ done, total, name }) => {
+          bar.style.transform = `scaleX(${total ? done / total : 0})`;
+          msg.textContent = name ? `Copiando ${done + 1} de ${total}: ${name}` : "Finalizando…";
+        },
+      });
+    } catch {
+      out = { added: 0, dup: 0, failed: ["erro"], stopped: null };
+    }
+    imp.run = false;
+    E.imp.close();
+    const parts = [];
+    if (out.added) parts.push(plural(out.added, "capítulo adicionado", "capítulos adicionados"));
+    if (out.dup) parts.push(plural(out.dup, "já estava na biblioteca", "já estavam na biblioteca"));
+    if (out.failed.length) parts.push(plural(out.failed.length, "falhou", "falharam"));
+    let text = parts.join(", ") || "Nada novo para adicionar";
+    if (out.stopped === "espaço") text += ". Parou: sem espaço no aparelho.";
+    if (out.stopped === "cancelado") text += ". Importação cancelada.";
+    if (out.stopped || out.failed.length) warn(text, 10000); else toast(text);
+    if (view === "library") await showLibrary();
+  });
+
+  // ===== Menus da obra e dos capítulos =====
+  function openAct(title, fill) {
+    E.acttitle.textContent = title;
+    E.actbody.replaceChildren();
+    fill(E.actbody);
+    showSheet(E.act);
+  }
+  const field = (label, el) => { const l = mk("label", "fld", label); l.append(el); return l; };
+  // Remover pede um segundo toque para confirmar
+  function confirmBtn(text, fn) {
+    const b = mk("button", "btn danger", text);
+    b.type = "button";
+    let armed = false, t;
+    b.onclick = () => {
+      if (armed) return fn();
+      armed = true;
+      b.textContent = "Toque de novo para confirmar";
+      t = setTimeout(() => { armed = false; b.textContent = text; }, 4000);
+    };
+    return b;
+  }
+  const forget = (list) => { list.forEach((c) => delete pos[c.sig]); put(POS, pos); };
+
+  function workMenu() {
+    const w = st.work, chs = st.files;
+    openAct("Opções da obra", (b) => {
+      const inp = mk("input", "txt-in");
+      inp.type = "text"; inp.value = w.title; inp.autocomplete = "off";
+      const save = mk("button", "btn", "Salvar nome");
+      save.type = "button";
+      save.onclick = async () => {
+        const r = await Library.renameWork(w.id, inp.value);
+        E.act.close();
+        const x = await loadWork(r.id).catch(() => null);
+        if (!x) return history.back();
+        renderWork(x);
+        setView("work");
+        toast(r.merged ? "Obras unidas" : "Nome salvo");
+      };
+      const rm = confirmBtn("Remover obra e capítulos", async () => {
+        await Library.removeWork(w.id);
+        forget(chs);
+        E.act.close();
+        toast("Obra removida");
+        history.back();
+      });
+      b.append(field("Nome da obra", inp), save, rm);
+    });
+  }
+  function chapterMenu(n) {
+    const ch = st.files[n], others = st.data.works.filter((w) => w.id !== st.work.id);
+    openAct(ch.name, (b) => {
+      const sel = mk("select");
+      others.forEach((w) => sel.append(new Option(w.title, w.id)));
+      sel.append(new Option("Nova obra…", "__new"));
+      const nm = mk("input", "txt-in");
+      nm.type = "text"; nm.placeholder = "Nome da nova obra"; nm.autocomplete = "off";
+      const sync = () => { nm.hidden = sel.value !== "__new"; };
+      sel.onchange = sync;
+      sync();
+      const mv = mk("button", "btn alt", "Mover capítulo");
+      mv.type = "button";
+      mv.onclick = async () => {
+        const target = sel.value === "__new" ? { title: nm.value.trim() } : { workId: sel.value };
+        if (target.title === "") return nm.focus();
+        await Library.moveChapter(ch, target);
+        E.act.close();
+        toast("Capítulo movido");
+        await refreshWork();
+      };
+      const rm = confirmBtn("Remover capítulo", async () => {
+        const r = await Library.removeChapter(ch);
+        forget([ch]);
+        E.act.close();
+        toast("Capítulo removido");
+        if (r.workGone) history.back(); else await refreshWork();
+      });
+      b.append(field("Mover para", sel), nm, mv, rm);
+    });
+  }
+
+  // ===== Abrir um capítulo da biblioteca =====
   async function openChapter(i, p = 0) {
     if (i < 0 || i >= st.files.length) return;
     savePos(true);
     const s = ++st.s;
     reset();
+    setView("reader");
+    const rec = st.files[i], name = rec.name;
     st.i = i;
     st.start = p;
-    const name = E.chapter.options[i].text;
+    st.done = Boolean(pos[rec.sig]?.d);
     E.chapter.value = i;
-    document.title = `${name} · Visualizador de Manhwa`;
-    E.welcome.hidden = E.reader.hidden = E.end.hidden = true;
+    document.title = `${name} · ${APP}`;
+    E.reader.hidden = E.end.hidden = true;
     document.querySelectorAll("[data-nav]").forEach((b) => {
       const t = i + +b.dataset.nav;
       b.disabled = t < 0 || t >= st.files.length;
@@ -217,7 +606,7 @@
     warn(`Abrindo ${name}…`);
     try {
       if (!window.JSZip) throw new Error("A biblioteca JSZip não carregou. Recarregue a página.");
-      const zip = await JSZip.loadAsync(st.files[i]);
+      const zip = await JSZip.loadAsync(await Library.getFile(rec));
       if (s !== st.s) return;
       const ents = Object.values(zip.files)
         .filter((e) => !e.dir && IMG.test(e.name) && !e.name.split("/").some((p) => p[0] === "." || p === "__MACOSX"))
@@ -227,11 +616,28 @@
       build(ents);
       warn("");
       say(`${name}: ${ents.length} páginas.`);
+      rec.pages = ents.length;
+      Library.setPages(rec.id, ents.length).catch(() => {});
+      autoCover(ents[0]);
     } catch (err) {
       if (s !== st.s) return;
-      E.welcome.hidden = false;
-      warn(`Não foi possível abrir ${name}. ${err.message}`);
+      warn(`Não foi possível abrir ${name}. ${err.message}`, 8000);
+      history.back(); // volta para a obra
     }
+  }
+
+  // Obra sem poster ganha capa do topo da primeira página aberta (feito depois, sem atrapalhar a leitura)
+  const coverTried = new Set();
+  function autoCover(entry) {
+    const w = st.work;
+    if (!w || w.cover || coverTried.has(w.id)) return;
+    coverTried.add(w.id);
+    setTimeout(async () => {
+      try {
+        const b = await Library.thumb(await entry.async("blob"), { top: true });
+        if (await Library.setCover(w.id, b, "auto")) w.cover = b;
+      } catch {}
+    }, 2500);
   }
 
   // ===== Páginas: só as próximas da tela ficam extraídas e decodificadas =====
@@ -393,6 +799,7 @@
     });
   }
   function showUI(v) {
+    if (view !== "reader") return;
     const focused = E.topbar.contains(document.activeElement) || E.dock.contains(document.activeElement);
     if (!v && (!S.autoHide || focused)) return;
     document.body.classList.toggle("immersive", !v);
@@ -460,12 +867,27 @@
   const go = (d) => st.files.length && openChapter(st.i + d);
   document.addEventListener("click", (e) => {
     const t = e.target;
-    if (t.closest("[data-open]")) return E.file.click();
+    const pk = t.closest("[data-pick]");
+    if (pk) return pick(pk.dataset.pick);
+    if (t.closest("[data-open]")) return showSheet(E.addsheet);
+    if (t.closest("[data-back]") || t.closest("#back")) return history.back();
     const n = t.closest("[data-nav]");
     if (n) return go(+n.dataset.nav);
-    if (t.closest("#opensettings")) { syncForm(); tab(0); return E.settings.showModal(); }
+    if (t.closest("[data-settings]")) { syncForm(); syncInstall(); tab(0); return showSheet(E.settings); }
     if (t.closest("#play")) { if (e.detail) t.closest("#play").blur(); return toggleAuto(); }
     if (t.closest("#fs")) return toggleFs();
+    const rs = t.closest("#resume, #workresume");
+    if (rs) return read(rs.dataset.work, +rs.dataset.i, +rs.dataset.p);
+    const card = t.closest(".card");
+    if (card) return showWork(card.dataset.work, true);
+    const ch = t.closest(".chap");
+    if (ch) {
+      const r = pos[st.files[+ch.dataset.i].sig];
+      return read(st.work.id, +ch.dataset.i, r && !r.d ? r.p : 0);
+    }
+    const cm = t.closest("[data-chmenu]");
+    if (cm) return chapterMenu(+cm.dataset.chmenu);
+    if (t.closest("#more")) return workMenu();
     const r = t.closest("[data-retry]");
     if (r) {
       const p = r.closest(".page")._p;
@@ -475,10 +897,11 @@
     }
     if (t.closest(".page") && !getSelection().toString()) document.body.classList.toggle("immersive");
   });
-  E.file.addEventListener("change", () => { setFiles(E.file.files); E.file.value = ""; });
+  E.file.addEventListener("change", () => { const l = [...E.file.files]; E.file.value = ""; addFiles(l); });
+  E.folder.addEventListener("change", () => { const l = [...E.folder.files]; E.folder.value = ""; addFiles(l); });
   E.chapter.addEventListener("change", () => openChapter(+E.chapter.value));
   addEventListener("keydown", (e) => {
-    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || E.settings.open || /^(SELECT|INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    if (view !== "reader" || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || document.querySelector("dialog[open]") || /^(SELECT|INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
     const k = e.key.toLowerCase();
     if (k === "arrowleft") go(-1);
     else if (k === "arrowright") go(1);
@@ -488,7 +911,15 @@
   });
   addEventListener("dragover", (e) => { e.preventDefault(); document.body.classList.add("drag"); });
   addEventListener("dragleave", (e) => { if (!e.relatedTarget) document.body.classList.remove("drag"); });
-  addEventListener("drop", (e) => { e.preventDefault(); document.body.classList.remove("drag"); setFiles(e.dataTransfer.files); });
+  addEventListener("drop", (e) => { e.preventDefault(); document.body.classList.remove("drag"); addFiles([...e.dataTransfer.files]); });
+
+  // Botão voltar do Android: leitor → obra → biblioteca
+  addEventListener("popstate", (e) => {
+    const s = e.state || { v: "library" };
+    if (s.v === "work" && s.id) showWork(s.id, false);
+    else if (s.v === "reader" && st.pages.length) setView("reader");
+    else showLibrary();
+  });
 
   // ===== Tela acesa durante a leitura =====
   let wl;
@@ -508,7 +939,57 @@
   // Tema "Automático" acompanha o sistema
   matchMedia("(prefers-color-scheme: light)").addEventListener?.("change", () => { if (S.theme === "auto") apply(); });
 
-  E.fs.hidden = !document.fullscreenEnabled;
+  // ===== App instalável (PWA) =====
+  // Instalar: o Chrome do Android avisa quando dá para instalar; o botão fica nos ajustes.
+  let installEvt = null, updating = false;
+  const standalone = () => matchMedia("(display-mode: standalone)").matches;
+  function syncInstall() { E.installrow.hidden = !installEvt || standalone(); }
+  addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; syncInstall(); });
+  addEventListener("appinstalled", () => { installEvt = null; syncInstall(); toast("App instalado"); });
+  E.install.addEventListener("click", async () => {
+    if (!installEvt) return;
+    installEvt.prompt();
+    await installEvt.userChoice.catch(() => {});
+    installEvt = null;
+    syncInstall();
+  });
+
+  // Atualizar: a versão nova espera o leitor tocar em "Atualizar" (nunca recarrega no meio da leitura).
+  function offerUpdate(worker) {
+    E.update.hidden = false;
+    E.doupdate.onclick = () => { updating = true; worker.postMessage("atualizar"); };
+  }
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("controllerchange", () => { if (updating) location.reload(); });
+    addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").then((reg) => {
+        if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
+        reg.addEventListener("updatefound", () => {
+          const nw = reg.installing;
+          nw?.addEventListener("statechange", () => {
+            if (nw.state === "installed" && navigator.serviceWorker.controller) offerUpdate(nw);
+          });
+        });
+        // App aberto por muito tempo: confere se há versão nova ao voltar para ele
+        document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update().catch(() => {}); });
+      }).catch(() => {});
+    });
+  }
+
+  // Escolher pasta só aparece onde o navegador sabe fazer isso
+  const canFolder = "webkitdirectory" in E.folder;
+  document.querySelectorAll("[data-folder]").forEach((b) => { b.hidden = !canFolder; });
+  document.getElementById("folderhint").hidden = !canFolder;
+
+  async function boot() {
+    history.replaceState({ v: "library" }, "");
+    if (!window.Library) { st.empty = true; setView("library"); return warn("A biblioteca não carregou. Recarregue a página.", 0); }
+    try { await Library.init(); }
+    catch { st.empty = true; setView("library"); return warn("Não foi possível abrir o armazenamento deste navegador. A biblioteca não vai funcionar.", 0); }
+    await showLibrary();
+  }
+
   apply();
   if (!window.JSZip) warn("A biblioteca JSZip não carregou. Recarregue a página.");
+  boot();
 })();

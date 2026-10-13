@@ -11,6 +11,8 @@
   <meta name="author" content="Lucas">
   <link rel="icon" href="frog.svg" type="image/svg+xml">
   <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
   <!-- Aplica o tema salvo antes da primeira pintura (evita o "piscar") -->
   <script>
     try {
@@ -25,6 +27,7 @@
   </script>
   <link rel="stylesheet" href="assets/styles/style.css">
   <script src="assets/js/vendor/jszip.min.js" defer></script>
+  <script src="assets/js/library.js" defer></script>
   <script src="assets/js/script.js" defer></script>
 </head>
 
@@ -33,12 +36,12 @@
   <div class="progress" id="prog" aria-hidden="true"><i id="bar"></i></div>
 
   <header class="topbar" id="topbar">
-    <button class="icon" id="open" type="button" data-open aria-label="Abrir arquivos CBZ">
+    <button class="icon" id="back" type="button" aria-label="Voltar" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <path d="M14 2v6h6M12 18v-6M9 15h6" />
+        <path d="M15 18l-6-6 6-6" />
       </svg>
     </button>
+    <strong class="ttl" id="ttl">Biblioteca</strong>
     <div class="select" id="chapters" hidden>
       <label class="sr" for="chapter">Capítulo</label>
       <select id="chapter"></select>
@@ -51,18 +54,45 @@
         <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
       </svg>
     </button>
+    <button class="icon" id="more" type="button" aria-label="Opções da obra" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 12h.01M12 12h.01M19 12h.01" style="stroke-width:3.5" />
+      </svg>
+    </button>
+    <button class="icon" id="open" type="button" data-open aria-label="Adicionar capítulos" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+    </button>
+    <button class="icon" id="topsettings" type="button" data-settings aria-haspopup="dialog" aria-label="Ajustes" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
+      </svg>
+    </button>
   </header>
 
   <main id="viewer" tabindex="-1">
     <p class="notice" id="notice" role="status" hidden></p>
 
-    <section class="welcome" id="welcome">
+    <section class="welcome" id="welcome" hidden>
       <img class="logo" src="frog.svg" alt="">
       <h1>Visualizador de Manhwa</h1>
-      <p>Abra capítulos em CBZ do seu aparelho e leia rolando a tela. Os arquivos não saem do seu navegador.</p>
-      <button class="btn" type="button" data-open>Escolher arquivos</button>
-      <p class="sub">Você também pode arrastar vários arquivos .cbz para esta página.</p>
+      <p>Adicione capítulos em CBZ do seu aparelho e leia rolando a tela. Eles ficam salvos aqui, no seu navegador, e não vão para a internet.</p>
+      <button class="btn" type="button" data-pick="files">Escolher arquivos</button>
+      <button class="btn alt" type="button" data-pick="folder" data-folder>Escolher pasta</button>
+      <p class="sub">Dica: uma imagem chamada poster dentro da pasta vira a capa da obra.</p>
       <noscript><p>Ative o JavaScript para usar o leitor.</p></noscript>
+    </section>
+
+    <section class="lib" id="library" aria-label="Biblioteca" hidden>
+      <button class="resume" id="resume" type="button" hidden></button>
+      <div class="grid" id="grid"></div>
+      <p class="store" id="store"></p>
+    </section>
+
+    <section class="lib" id="work" aria-label="Capítulos da obra" hidden>
+      <button class="resume" id="workresume" type="button"></button>
+      <ol class="chaps" id="chaps"></ol>
     </section>
 
     <div class="reader" id="reader" hidden></div>
@@ -72,11 +102,17 @@
       <div>
         <button class="btn alt" type="button" data-nav="-1">Capítulo anterior</button>
         <button class="btn" type="button" data-nav="1">Próximo capítulo</button>
+        <button class="btn alt" type="button" data-back>Voltar à obra</button>
       </div>
     </footer>
   </main>
 
   <p class="toast" id="toast" hidden></p>
+
+  <div class="update" id="update" role="status" hidden>
+    <span>Nova versão disponível.</span>
+    <button class="btn" type="button" id="doupdate">Atualizar</button>
+  </div>
 
   <nav class="dock" id="dock" aria-label="Capítulos e ajustes" hidden>
     <button class="icon" type="button" data-nav="-1" aria-label="Capítulo anterior">
@@ -99,7 +135,7 @@
         <path d="M8 5v14M16 5v14" />
       </svg>
     </button>
-    <button class="icon" type="button" id="opensettings" aria-haspopup="dialog" aria-label="Ajustes de leitura">
+    <button class="icon" type="button" data-settings aria-haspopup="dialog" aria-label="Ajustes de leitura">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
       </svg>
@@ -207,6 +243,11 @@
             <input type="range" name="warm" min="0" max="100" step="5">
           </label>
 
+          <div class="switch" id="installrow" hidden>
+            <span>Instalar como app<small>Abre mais rápido, em tela cheia e funciona sem internet.</small></span>
+            <button class="btn alt" type="button" id="install">Instalar</button>
+          </div>
+
           <label class="switch"><span>Manter a tela acesa</span><input type="checkbox" name="awake" role="switch"></label>
           <label class="switch">
             <span>Modo econômico<small>Mantém menos páginas na memória. Ideal para aparelhos mais simples.</small></span>
@@ -222,7 +263,58 @@
     </form>
   </dialog>
 
-  <input type="file" id="file" accept=".cbz,.zip" multiple hidden>
+  <dialog id="addsheet" aria-labelledby="add-title">
+    <form method="dialog" class="sheet">
+      <header class="sh-head">
+        <h2 id="add-title">Adicionar capítulos</h2>
+        <button class="icon" aria-label="Fechar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+      </header>
+      <div class="body">
+        <button class="choice" type="button" data-pick="files">
+          <strong>Escolher arquivos</strong>
+          <small>Selecione um ou vários capítulos .cbz de uma vez.</small>
+        </button>
+        <button class="choice" type="button" data-pick="folder" data-folder>
+          <strong>Escolher pasta</strong>
+          <small>Cada pasta vira uma obra. Uma imagem chamada poster dentro da pasta vira a capa.</small>
+        </button>
+        <p class="hint" id="folderhint" hidden>Escolher pasta exige o Chrome 132 ou mais novo no Android.</p>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="imp" aria-labelledby="imp-title">
+    <form method="dialog" class="sheet">
+      <header class="sh-head">
+        <h2 id="imp-title">Adicionar à biblioteca</h2>
+        <button class="icon" type="button" id="impclose" aria-label="Fechar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+      </header>
+      <div class="body" id="impbody"></div>
+      <footer class="sh-foot">
+        <button class="btn alt" type="button" id="impcancel">Cancelar</button>
+        <button class="btn" type="button" id="impgo">Importar</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="act" aria-labelledby="acttitle">
+    <form method="dialog" class="sheet">
+      <header class="sh-head">
+        <h2 id="acttitle"></h2>
+        <button class="icon" aria-label="Fechar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+      </header>
+      <div class="body" id="actbody"></div>
+    </form>
+  </dialog>
+
+  <input type="file" id="file" accept=".cbz,.zip,application/zip,application/vnd.comicbook+zip,application/x-cbz,application/octet-stream,image/*" multiple hidden>
+  <input type="file" id="folder" webkitdirectory multiple hidden>
   <div class="dim" id="dim" aria-hidden="true" hidden></div>
   <p class="sr" id="live" role="status"></p>
 </body>
