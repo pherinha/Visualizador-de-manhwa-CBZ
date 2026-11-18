@@ -1,4 +1,4 @@
-/* Biblioteca local do Visualizador de Manhwa.
+/* Biblioteca local do Lombada.
    - Os arquivos .cbz ficam no OPFS (armazenamento privado do site); se o navegador não puder gravar
      por lá, ficam no IndexedDB.
    - Os dados das obras e dos capítulos ficam no IndexedDB.

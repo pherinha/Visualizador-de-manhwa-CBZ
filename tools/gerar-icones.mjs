@@ -1,19 +1,19 @@
-// Gera os ícones do app a partir do seu frog.svg.
+// Gera os ícones do app a partir do seu marca.svg.
 //
 // Uso (na raiz do projeto, uma única vez):
 //   npm install --no-save sharp
-//   node tools/gerar-icones.mjs frog.svg
+//   node tools/gerar-icones.mjs marca.svg
 //
 // Opcional: cor do fundo como segundo argumento (padrão: menta #8bd3a3)
-//   node tools/gerar-icones.mjs frog.svg "#121316"
+//   node tools/gerar-icones.mjs marca.svg "#121316"
 //
 // Observação: o sapo do projeto é escuro (o site o inverte no tema escuro),
 // por isso o fundo padrão é claro. Se usar fundo escuro, o sapo precisa ser claro.
 import sharp from "sharp";
 import { mkdir } from "node:fs/promises";
 
-const origem = process.argv[2] || "frog.svg";
-const fundo = process.argv[3] || "#8bd3a3";
+const origem = process.argv[2] || "marca.svg";
+const fundo = process.argv[3] || "#15191F";
 await mkdir("icons", { recursive: true });
 
 async function icone(tamanho, ocupa, saida) {

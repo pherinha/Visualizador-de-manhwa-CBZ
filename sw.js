@@ -1,11 +1,11 @@
-/* Service worker do Visualizador de Manhwa.
+/* Service worker do Lombada.
    Guarda só a "casca" do app (HTML, CSS, JS, ícones) para abrir rápido e sem internet.
    Os capítulos NÃO passam por aqui.
 
    >>> A cada publicação que mudar qualquer arquivo abaixo, aumente o número de VERSAO. <<<
 */
-const VERSAO = 3;
-const CACHE = `manhwa-v${VERSAO}`;
+const VERSAO = 4;
+const CACHE = `lombada-v${VERSAO}`;
 
 // Sem estes o app não abre: se algum falhar, a instalação do service worker falha de propósito.
 const ESSENCIAIS = [
@@ -19,8 +19,7 @@ const ESSENCIAIS = [
 // Enfeites e ícones: se algum faltar, o app continua funcionando.
 const OPCIONAIS = [
   "manifest.webmanifest",
-  "frog.svg",
-  "grain.gif",
+  "marca.svg",
   "favicon.ico",
   "icons/icon-192.png",
   "icons/icon-512.png",
@@ -41,7 +40,7 @@ self.addEventListener("install", (e) => {
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys()
-      .then((ks) => Promise.all(ks.filter((k) => k.startsWith("manhwa-") && k !== CACHE).map((k) => caches.delete(k))))
+      .then((ks) => Promise.all(ks.filter((k) => (k.startsWith("manhwa-") || k.startsWith("lombada-")) && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

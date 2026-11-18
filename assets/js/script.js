@@ -9,13 +9,13 @@
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
   const IMG = /\.(jpe?g|png|gif|webp|avif)$/i;
   const root = document.documentElement;
-  const APP = "Visualizador de Manhwa";
+  const APP = "Lombada";
   let view = "library"; // library | work | reader
 
   // ===== Ajustes (salvos no aparelho) =====
   const KEY = "cbz-reader:v2", OLD = "cbz-reader:v1", POS = "cbz-reader:pos";
   const DEF = {
-    theme: "auto", bg: "#14161b", accent: "#8bd3a3", ui: "m",
+    theme: "auto", bg: "#14161b", accent: "#d5b06a", ui: "m",
     width: null, gap: 0, radius: 0, dim: 0, warm: 0, speed: 6,
     showBar: true, showCount: true, autoHide: true, remember: true, autoNext: false,
     awake: true, eco: null,
@@ -25,6 +25,8 @@
   const saved = store(KEY) || store(OLD) || {};
   if (typeof saved.width !== "number") delete saved.width; // a v1 guardava texto ("narrow"...)
   const S = { ...DEF, ...saved };
+  if (S.accent === "#8bd3a3" && !saved.brand) S.accent = DEF.accent; // menta era o padrão antigo
+  S.brand = 2;
   if (!/^#[0-9a-f]{6}$/i.test(S.bg)) S.bg = DEF.bg;
   if (!/^#[0-9a-f]{6}$/i.test(S.accent)) S.accent = DEF.accent;
   S.accent = S.accent.toLowerCase();
@@ -42,7 +44,7 @@
     const [r, g, b] = c.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
   };
-  const VARS = ["bg", "sf", "sf2", "tx", "mu", "ln", "logo"];
+  const VARS = ["bg", "sf", "sf2", "tx", "mu", "ln", "logo", "mesa"];
   const OUT = {
     width: (v) => v + "%", gap: (v) => v + " px", radius: (v) => v + " px",
     dim: (v) => v + "%", warm: (v) => v + "%", speed: (v) => v,
@@ -57,7 +59,7 @@
       const light = lum(rgb(S.bg)) > 0.4, tx = light ? "#1b1e24" : "#ebe9e4";
       const v = {
         bg: S.bg, sf: mix(S.bg, tx, 0.06), sf2: mix(S.bg, tx, 0.12), tx,
-        mu: mix(S.bg, tx, 0.62), ln: mix(S.bg, tx, 0.2), logo: light ? "none" : "invert(.88)",
+        mu: mix(S.bg, tx, 0.62), ln: mix(S.bg, tx, 0.2), logo: "none", mesa: light ? mix(S.bg, tx, 0.08) : mix(S.bg, "#000000", 0.3),
       };
       for (const k in v) rs.setProperty("--" + k, v[k]);
       rs.colorScheme = light ? "light" : "dark";
@@ -68,8 +70,9 @@
 
     // Cor de destaque: escurecida automaticamente em fundos claros para manter o contraste
     const body = getComputedStyle(document.body).backgroundColor;
-    const light = lum((body.match(/[\d.]+/g) || [18, 19, 22]).slice(0, 3).map(Number)) > 0.4;
-    const ac = light ? mix(S.accent, "#000000", 0.42) : S.accent;
+    const bgc = (body.match(/[\d.]+/g) || [18, 19, 22]).slice(0, 3).map(Number), light = lum(bgc) > 0.4;
+    let ac = S.accent; // em fundo claro, escurece o destaque até ter contraste 4,5:1
+    for (let t = 0.08; light && t < 0.95 && (lum(bgc) + 0.05) / (lum(rgb(ac)) + 0.05) < 4.5; t += 0.04) ac = mix(S.accent, "#000000", t);
     rs.setProperty("--ac", ac);
     rs.setProperty("--onac", lum(rgb(ac)) > 0.4 ? "#101214" : "#ffffff");
 
@@ -209,6 +212,8 @@
     } else d.textContent = (w.title.trim()[0] || "?").toUpperCase();
     return d;
   }
+  const withFio = (el, f) => { if (f > 0) { const i = mk("i", "fio"); i.style.setProperty("--f", Math.min(1, f)); el.append(i); } return el; };
+  const chFio = (r, c) => { const i = mk("i", "tick"); i.style.setProperty("--f", r?.d ? 1 : r ? (c.pages ? Math.min(1, (r.p + 1) / c.pages) : 0.5) : 0); return i; };
   function syncBars() { E.prog.hidden = !S.showBar || view !== "reader"; }
 
   function setView(v) {
@@ -228,7 +233,7 @@
     E.more.hidden = v !== "work";
     E.ttl.hidden = rd;
     E.fs.hidden = !rd || !document.fullscreenEnabled;
-    E.ttl.textContent = v === "work" ? st.work?.title || "" : "Biblioteca";
+    E.ttl.textContent = v === "work" ? st.work?.title || "" : APP;
     if (!rd) {
       document.body.classList.remove("immersive");
       if (prev !== v) scrollTo(0, ys[v] || 0);
@@ -275,7 +280,17 @@
   function fillResume(btn, x, tg, label) {
     const ch = x.chs[tg.i], ns = "http://www.w3.org/2000/svg";
     const txt = mk("div", "txt");
-    txt.append(mk("span", "", label), mk("strong", "", x.w.title), mk("small", "", ch.name + (tg.p ? ` · página ${tg.p + 1}` : "")));
+    txt.append(mk("span", "", label), mk("strong", "", x.w.title), mk("small", "", ch.name + (tg.p ? `, página ${tg.p + 1}` : "")));
+    const pr = ch.pages ? (pos[ch.sig]?.d ? 1 : tg.p ? (tg.p + 1) / ch.pages : 0) : 0;
+    if (pr) {
+      const mt = mk("div", "meter");
+      mt.innerHTML = "<i></i>";
+      mt.firstChild.style.transform = `scaleX(${pr})`;
+      mt.setAttribute("role", "progressbar");
+      mt.setAttribute("aria-label", "Progresso do capítulo");
+      mt.setAttribute("aria-valuenow", Math.round(pr * 100));
+      txt.append(mt);
+    }
     const svg = document.createElementNS(ns, "svg"), path = document.createElementNS(ns, "path");
     svg.setAttribute("viewBox", "0 0 24 24");
     svg.setAttribute("aria-hidden", "true");
@@ -289,9 +304,13 @@
 
   async function showStorage() {
     const u = await Library.usage();
-    E.store.textContent = u
-      ? `${fmt(u.used)} usados de ${fmt(u.quota)} neste aparelho. ` + (u.persisted ? "Seus capítulos estão protegidos contra limpeza automática." : "O navegador pode apagar estes dados se faltar espaço; instalar o app costuma ajudar.")
-      : "";
+    if (!u) return E.store.replaceChildren();
+    const m = mk("div", "meter");
+    m.innerHTML = "<i></i>";
+    m.firstChild.style.transform = `scaleX(${Math.min(1, u.used / u.quota)})`;
+    E.store.replaceChildren(mk("span", "", `${fmt(u.used)} de ${fmt(u.quota)} neste aparelho`), m,
+      mk("small", "", (Library.hasOPFS() ? "Armazenamento privado (OPFS). " : "Armazenamento do navegador (IndexedDB). ")
+        + (u.persisted ? "Protegido contra limpeza automática." : "O navegador pode apagar se faltar espaço; instalar o app ajuda.")));
   }
 
   async function renderLibrary() {
@@ -304,8 +323,8 @@
       const b = mk("button", "card");
       b.type = "button";
       b.dataset.work = x.w.id;
-      b.append(coverEl(x.w), mk("b", "", x.w.title),
-        mk("small", "", plural(x.chs.length, "capítulo", "capítulos") + (x.read ? ` · ${x.read} lido${x.read > 1 ? "s" : ""}` : "")));
+      b.append(withFio(coverEl(x.w), x.read / x.chs.length), mk("b", "", x.w.title),
+        mk("small", "", plural(x.chs.length, "capítulo", "capítulos") + (x.read ? `, ${x.read} lido${x.read > 1 ? "s" : ""}` : "")));
       return b;
     }));
     const best = items.find((x) => x.last);
@@ -332,13 +351,14 @@
     freeCovers();
     const tg = target(x);
     fillResume(E.workresume, x, tg, tg.fresh ? "Começar a ler" : "Continuar lendo");
+    E.workresume.querySelector(".txt").append(mk("small", "", `${plural(x.chs.length, "capítulo", "capítulos")}, ${plural(x.read, "lido", "lidos")}`));
     E.chaps.replaceChildren(...x.chs.map((c, n) => {
       const r = pos[c.sig];
       const li = mk("li", r?.d ? "read" : r ? "cur" : "");
       const b = mk("button", "chap");
       b.type = "button";
       b.dataset.i = n;
-      b.append(mk("span", "nm", c.name),
+      b.append(chFio(r, c), mk("span", "nm", c.name),
         mk("span", "stt", r?.d ? "Lido" : r ? `Pág. ${r.p + 1}${c.pages ? " de " + c.pages : ""}` : c.pages ? `${c.pages} pág.` : ""));
       const m = mk("button", "icon");
       m.type = "button";
@@ -540,7 +560,7 @@
     openAct("Opções da obra", (b) => {
       const inp = mk("input", "txt-in");
       inp.type = "text"; inp.value = w.title; inp.autocomplete = "off";
-      const save = mk("button", "btn", "Salvar nome");
+      const save = mk("button", "btn", "Salvar nome ou unir");
       save.type = "button";
       save.onclick = async () => {
         const r = await Library.renameWork(w.id, inp.value);
@@ -558,7 +578,23 @@
         toast("Obra removida");
         history.back();
       });
-      b.append(field("Nome da obra", inp), save, rm);
+      const cv = mk("button", "btn alt", "Trocar capa");
+      cv.type = "button";
+      cv.onclick = () => {
+        const f = mk("input");
+        f.type = "file"; f.accept = "image/*";
+        f.onchange = async () => {
+          if (!f.files[0]) return;
+          try { await Library.setCover(w.id, await Library.thumb(f.files[0]), "manual"); }
+          catch { return toast("Não foi possível trocar a capa"); }
+          E.act.close();
+          const x = await loadWork(w.id).catch(() => null);
+          if (x) { renderWork(x); setView("work"); }
+          toast("Capa trocada");
+        };
+        f.click();
+      };
+      b.append(field("Renomear ou unir obras", inp), save, cv, rm);
     });
   }
   function chapterMenu(n) {
@@ -621,6 +657,8 @@
         .sort((a, b) => collator.compare(a.name, b.name));
       if (!ents.length) throw new Error("Este arquivo não tem imagens de página.");
       E.endtitle.textContent = `Fim de ${name}`;
+      const nx = st.files[i + 1];
+      document.getElementById("nextname").textContent = nx ? `A seguir: ${nx.name}` : "Este é o último capítulo.";
       build(ents);
       warn("");
       say(`${name}: ${ents.length} páginas.`);
@@ -799,7 +837,7 @@
     requestAnimationFrame(() => {
       tick = false;
       const y = scrollY, max = document.documentElement.scrollHeight - innerHeight, dy = y - lastY;
-      E.bar.style.transform = `scaleX(${max > 0 ? Math.min(1, y / max) : 0})`;
+      E.bar.style.transform = `scaleY(${max > 0 ? Math.min(1, y / max) : 0})`;
       if (y < 80 || y >= max - 8) showUI(true);
       else if (Math.abs(dy) > 14) showUI(dy < 0);
       if (Math.abs(dy) > 14) lastY = y;
@@ -881,7 +919,7 @@
     if (t.closest("[data-back]") || t.closest("#back")) return history.back();
     const n = t.closest("[data-nav]");
     if (n) return go(+n.dataset.nav);
-    if (t.closest("[data-settings]")) { syncForm(); syncInstall(); tab(0); return showSheet(E.settings); }
+    if (t.closest("[data-settings]")) { syncForm(); syncInstall(); tab(view === "reader" ? 1 : 0); return showSheet(E.settings); }
     if (t.closest("#play")) { if (e.detail) t.closest("#play").blur(); return toggleAuto(); }
     if (t.closest("#fs")) return toggleFs();
     const rs = t.closest("#resume, #workresume");

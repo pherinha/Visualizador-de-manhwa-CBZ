@@ -4,12 +4,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#121316">
+  <meta name="theme-color" content="#15191F">
   <meta name="color-scheme" content="dark light">
-  <title>Visualizador de Manhwa</title>
-  <meta name="description" content="Leia manhwas em CBZ direto do navegador, com rolagem contínua e carregamento leve.">
+  <title>Lombada</title>
+  <meta name="description" content="Leia manhwas, mangás e HQs em CBZ rolando a tela. Tudo fica neste aparelho, sem internet.">
   <meta name="author" content="Lucas">
-  <link rel="icon" href="frog.svg" type="image/svg+xml">
+  <link rel="icon" href="marca.svg" type="image/svg+xml">
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="mobile-web-app-capable" content="yes">
@@ -41,7 +41,8 @@
         <path d="M15 18l-6-6 6-6" />
       </svg>
     </button>
-    <strong class="ttl" id="ttl">Biblioteca</strong>
+    <svg class="mark" viewBox="0 0 48 48" aria-hidden="true"><rect x="8" y="10" width="10" height="32" rx="2" fill="currentColor" opacity=".55"/><rect x="21" y="6" width="11" height="36" rx="2" fill="currentColor"/><rect x="21" y="6" width="11" height="19" rx="2" fill="var(--ac)"/><rect x="34" y="10" width="9" height="32" rx="2" fill="currentColor" opacity=".55" transform="rotate(9 34 42)"/><path d="M5 45.4h38" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".7"/></svg>
+    <h1 class="ttl" id="ttl">Lombada</h1>
     <div class="select" id="chapters" hidden>
       <label class="sr" for="chapter">Capítulo</label>
       <select id="chapter"></select>
@@ -59,11 +60,6 @@
         <path d="M5 12h.01M12 12h.01M19 12h.01" style="stroke-width:3.5" />
       </svg>
     </button>
-    <button class="icon" id="open" type="button" data-open aria-label="Adicionar capítulos" hidden>
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 5v14M5 12h14" />
-      </svg>
-    </button>
     <button class="icon" id="topsettings" type="button" data-settings aria-haspopup="dialog" aria-label="Ajustes" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
@@ -75,9 +71,9 @@
     <p class="notice" id="notice" role="status" hidden></p>
 
     <section class="welcome" id="welcome" hidden>
-      <img class="logo" src="frog.svg" alt="">
-      <h1>Visualizador de Manhwa</h1>
-      <p>Adicione capítulos em CBZ do seu aparelho e leia rolando a tela. Eles ficam salvos aqui, no seu navegador, e não vão para a internet.</p>
+      <img class="logo" src="marca.svg" alt="">
+      <h2>Lombada</h2>
+      <p>Sua estante, sem rede. Adicione capítulos em CBZ e leia rolando a tela. Tudo fica guardado neste aparelho e nada vai para a internet.</p>
       <button class="btn" type="button" data-pick="files">Escolher arquivos</button>
       <button class="btn alt" type="button" data-pick="folder" data-folder>Escolher pasta</button>
       <p class="sub">Dica: uma imagem chamada poster dentro da pasta vira a capa da obra.</p>
@@ -87,7 +83,7 @@
     <section class="lib" id="library" aria-label="Biblioteca" hidden>
       <button class="resume" id="resume" type="button" hidden></button>
       <div class="grid" id="grid"></div>
-      <p class="store" id="store"></p>
+      <div class="store" id="store"></div>
     </section>
 
     <section class="lib" id="work" aria-label="Capítulos da obra" hidden>
@@ -99,6 +95,7 @@
 
     <footer class="end" id="end" hidden>
       <p id="endtitle"></p>
+      <p class="next" id="nextname"></p>
       <div>
         <button class="btn alt" type="button" data-nav="-1">Capítulo anterior</button>
         <button class="btn" type="button" data-nav="1">Próximo capítulo</button>
@@ -108,6 +105,11 @@
   </main>
 
   <p class="toast" id="toast" hidden></p>
+
+  <button class="fab" id="open" type="button" data-open hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+    <span>Adicionar</span>
+  </button>
 
   <div class="update" id="update" role="status" hidden>
     <span>Nova versão disponível.</span>
@@ -154,9 +156,10 @@
       </header>
 
       <div class="tabs" role="tablist" aria-label="Seções dos ajustes">
-        <button type="button" role="tab" id="t-look" aria-controls="p-look" aria-selected="true">Visual</button>
+        <button type="button" role="tab" id="t-look" aria-controls="p-look" aria-selected="true">Aparência</button>
         <button type="button" role="tab" id="t-read" aria-controls="p-read" aria-selected="false" tabindex="-1">Leitura</button>
-        <button type="button" role="tab" id="t-screen" aria-controls="p-screen" aria-selected="false" tabindex="-1">Tela</button>
+        <button type="button" role="tab" id="t-screen" aria-controls="p-screen" aria-selected="false" tabindex="-1">Conforto</button>
+        <button type="button" role="tab" id="t-app" aria-controls="p-app" aria-selected="false" tabindex="-1">App</button>
       </div>
 
       <div class="panels">
@@ -182,12 +185,12 @@
           <fieldset>
             <legend>Cor de destaque</legend>
             <div class="dots">
-              <label class="dot" style="--c:#8bd3a3"><input type="radio" name="accent" value="#8bd3a3" aria-label="Menta"><i></i></label>
-              <label class="dot" style="--c:#7cb7f5"><input type="radio" name="accent" value="#7cb7f5" aria-label="Azul"><i></i></label>
-              <label class="dot" style="--c:#b79cf5"><input type="radio" name="accent" value="#b79cf5" aria-label="Violeta"><i></i></label>
-              <label class="dot" style="--c:#f28fb0"><input type="radio" name="accent" value="#f28fb0" aria-label="Rosa"><i></i></label>
-              <label class="dot" style="--c:#f2b866"><input type="radio" name="accent" value="#f2b866" aria-label="Âmbar"><i></i></label>
-              <label class="dot" style="--c:#f28b7a"><input type="radio" name="accent" value="#f28b7a" aria-label="Coral"><i></i></label>
+              <label class="dot" style="--c:#d5b06a"><input type="radio" name="accent" value="#d5b06a" aria-label="Latão"><i></i></label>
+              <label class="dot" style="--c:#8fb0e8"><input type="radio" name="accent" value="#8fb0e8" aria-label="Azul"><i></i></label>
+              <label class="dot" style="--c:#9cc49a"><input type="radio" name="accent" value="#9cc49a" aria-label="Musgo"><i></i></label>
+              <label class="dot" style="--c:#e0a0b4"><input type="radio" name="accent" value="#e0a0b4" aria-label="Rosa"><i></i></label>
+              <label class="dot" style="--c:#b4a4e8"><input type="radio" name="accent" value="#b4a4e8" aria-label="Lilás"><i></i></label>
+              <label class="dot" style="--c:#f0907a"><input type="radio" name="accent" value="#f0907a" aria-label="Coral"><i></i></label>
               <label class="dot custom"><input type="color" name="accentc" aria-label="Escolher outra cor"><i></i></label>
             </div>
           </fieldset>
@@ -201,7 +204,7 @@
             </div>
           </fieldset>
 
-          <label class="switch"><span>Barra de progresso no topo</span><input type="checkbox" name="showBar" role="switch"></label>
+          <label class="switch"><span>Fio de progresso na lateral</span><input type="checkbox" name="showBar" role="switch"></label>
           <label class="switch"><span>Contador de páginas</span><input type="checkbox" name="showCount" role="switch"></label>
         </section>
 
@@ -243,16 +246,21 @@
             <input type="range" name="warm" min="0" max="100" step="5">
           </label>
 
+          <label class="switch"><span>Manter a tela acesa</span><input type="checkbox" name="awake" role="switch"></label>
+        </section>
+
+        <!-- App -->
+        <section role="tabpanel" id="p-app" aria-labelledby="t-app" tabindex="0" hidden>
+
           <div class="switch" id="installrow" hidden>
             <span>Instalar como app<small>Abre mais rápido, em tela cheia e funciona sem internet.</small></span>
             <button class="btn alt" type="button" id="install">Instalar</button>
           </div>
-
-          <label class="switch"><span>Manter a tela acesa</span><input type="checkbox" name="awake" role="switch"></label>
           <label class="switch">
             <span>Modo econômico<small>Mantém menos páginas na memória. Ideal para aparelhos mais simples.</small></span>
             <input type="checkbox" name="eco" role="switch">
           </label>
+          <p class="hint">A biblioteca fica só neste aparelho. Limpar os dados do site apaga tudo. Instalar o app ajuda o navegador a não apagar seus capítulos.</p>
         </section>
       </div>
 
